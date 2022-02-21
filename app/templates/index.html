@@ -1,9 +1,78 @@
+{% import 'appbuilder/general/lib.html' as lib %}
 {% extends "appbuilder/base.html" %}
 {% block content %}
-<div class="jumbotron">
-  <div class="container">
-    <h1>My App on F.A.B.</h1>
-    <p>My first app using F.A.B, bla, bla, bla</p>
-  </div>
+<div class="container">
+  <h1>My Transformers Collection</h1>
+  <h2>Total number of figures: {{ num_figures }}</h2>
+{% call lib.accordion_tag('by_franchise',"By Franchise", False) %}
+  <table class="table table-striped table-hover">
+    <thead>
+      <tr><th>Name</th><th>Start Year</th><th>End Year</th><th>Total</th></tr>
+    </thead>
+    <tbody>
+{% for f in by_franchise %}
+      <tr>
+        <td><a href="{{ url_for('FigureModelView.list',_flt_0_franchise=f.franchise.id) }}">{{ f.franchise.name }}
+{% if f.franchise.image %}
+          <br/><img src="{{ url_for('FranchiseModelView.img_thumb', pk=f.franchise.id) }}" alt="{{ f.franchise.name }}" class="img-responsive">
+{% endif %}
+        </a></td>
+        <td>{{ f.franchise.start_year}}</td>
+        <td>{{ f.franchise.end_year }}</td>
+        <td>{{ f.total }}</td>
+      </tr>
+{% endfor %}
+    </tbody>
+  </table>
+{% endcall %}
+{% call lib.accordion_tag('by_faction',"By Faction", False) %}
+  <table class="table table-striped table-hover">
+    <thead>
+      <tr><th>Name</th><th>Total</th></tr>
+    </thead>
+    <tbody>
+{% for f in by_faction %}
+      <tr>
+        <td><a href="{{ url_for('FigureModelView.list',_flt_0_faction=f.faction.id) }}">{{ f.faction.name }}
+{% if f.faction.image %}
+          <br/><img src="{{ url_for('FactionModelView.img_thumb', pk=f.faction.id) }}" alt="{{ f.faction.name }}" class="img-responsive">
+{% endif %}
+        </a></td>
+        <td>{{ f.total }}</td>
+      </tr>
+{% endfor %}
+    </tbody>
+  </table>
+{% endcall %}
+{% call lib.accordion_tag('by_tooling',"By Tooling", False) %}
+  <table class="table table-striped table-hover">
+    <thead>
+      <tr><th>Name</th><th>Total</th></tr>
+    </thead>
+    <tbody>
+{% for f in by_tooling %}
+      <tr>
+        <td><a href="{{ url_for('FigureModelView.list',_flt_0_tooling=f.tooling.id) }}">{{ f.tooling.name }}</a></td>
+        <td>{{ f.total }}</td>
+      </tr>
+{% endfor %}
+    </tbody>
+  </table>
+{% endcall %}
+{% call lib.accordion_tag('by_category',"By Category", False) %}
+  <table class="table table-striped table-hover">
+    <thead>
+      <tr><th>Name</th><th>Total</th></tr>
+    </thead>
+    <tbody>
+{% for f in by_category %}
+      <tr>
+        <td><a href="{{ url_for('FigureModelView.list',_flt_0_categories=f.category.id) }}">{{ f.category.name }}</a></td>
+        <td>{{ f.total }}</td>
+      </tr>
+{% endfor %}
+    </tbody>
+  </table>
+{% endcall %}
 </div>
 {% endblock %}
