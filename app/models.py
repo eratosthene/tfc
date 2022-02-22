@@ -109,7 +109,7 @@ class TFWikiLink(Document):
         ls = self.link.split('#')
         if len(ls) > 1:
             n = ls[0].split('/')[-1]
-            if n == 'toys':
+            if (n == 'toys' or n == 'Generations_toys':
                 n = ls[0].split('/')[-2]
             sn = n.split('_(')
             if len(sn) > 1:
