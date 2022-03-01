@@ -86,8 +86,12 @@ class FactionModelView(ModelView):
 class ToolingModelView(ModelView):
     datamodel = MongoEngineInterface(Tooling)
     base_order = ('name', 'desc')
+    label_columns = {
+        'figure_list': 'Figures'
+    }
     list_columns = [
-        "name"
+        "name",
+        'figure_list'
     ]
     show_columns = [
         "name"
@@ -96,8 +100,12 @@ class ToolingModelView(ModelView):
 class AccessoryModelView(ModelView):
     datamodel = MongoEngineInterface(Accessory)
     base_order = ('name', 'desc')
+    label_columns = {
+        'figure_list': 'Figures'
+    }
     list_columns = [
-        "name"
+        "name",
+        'figure_list'
     ]
     show_columns = [
         "name"
@@ -106,8 +114,12 @@ class AccessoryModelView(ModelView):
 class CategoryModelView(ModelView):
     datamodel = MongoEngineInterface(Category)
     base_order = ('name', 'desc')
+    label_columns = {
+        'figure_list': 'Figures'
+    }
     list_columns = [
-        "name"
+        "name",
+        'figure_list'
     ]
     show_columns = [
         "name"
@@ -116,10 +128,16 @@ class CategoryModelView(ModelView):
 class TFWikiLinkModelView(ModelView):
     datamodel = MongoEngineInterface(TFWikiLink)
     base_order = ('name', 'desc')
+    label_columns = {
+        'figure_list': 'Figures',
+        'history_list': 'History'
+    }
     list_columns = [
         "name",
         "link_type",
-        "link"
+        "link",
+        'figure_list',
+        'history_list'
     ]
     show_columns = [
         "name",

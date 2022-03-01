@@ -83,6 +83,11 @@ class Tooling(Document):
     def __repr__(self):
         return self.name
 
+    def figure_list(self):
+        return Markup(
+            '<a href="' + url_for('FigureModelView.list',_flt_0_tooling=str(self.id)) + '">Search Figures</a>'
+        )
+        
 class Accessory(Document):
     name = StringField(max_length=60, required=True, unique=True)
 
@@ -92,6 +97,11 @@ class Accessory(Document):
     def __repr__(self):
         return self.name
 
+    def figure_list(self):
+        return Markup(
+            '<a href="' + url_for('FigureModelView.list',_flt_0_accessories=str(self.id)) + '">Search Figures</a>'
+        )
+        
 class Category(Document):
     name = StringField(max_length=60, required=True, unique=True)
 
@@ -101,6 +111,11 @@ class Category(Document):
     def __repr__(self):
         return self.name
 
+    def figure_list(self):
+        return Markup(
+            '<a href="' + url_for('FigureModelView.list',_flt_0_categories=str(self.id)) + '">Search Figures</a>'
+        )
+        
 class TFWikiLink(Document):
     name = StringField(required=True)
     link = URLField(required=True)
@@ -134,7 +149,26 @@ class TFWikiLink(Document):
         else:
             return 'Character'
             
-
+    def figure_list(self):
+        if 'Character' in self.link_type():
+            return Markup(
+                '<a href="' + url_for('FigureModelView.list',_flt_0_character=str(self.id)) + '">Search for this Character</a>'
+            )
+        else:
+            return Markup(
+                '<a href="' + url_for('FigureModelView.list',_flt_0_figure_link=str(self.id)) + '">Search for this Figure</a>'
+            )
+        
+    def history_list(self):
+        if 'Figure' in self.link_type():
+            return Markup(
+                '<a href="' + url_for('FigureModelView.list',_flt_0_history=str(self.id)) + '">Search for this Ancestor</a>'
+            )
+        else:
+            return Markup(
+                ''
+            )
+        
 class Figure(Document):
     name = StringField(required=True)
     release_year = IntField(min_value=1900, max_value=3000, required=True)
