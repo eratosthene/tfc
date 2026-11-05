@@ -12,7 +12,8 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 # Your app secret key. Use a long random value and keep it out of git.
 SECRET_KEY = "change-me-to-a-long-random-value"
 
-# The MongoEngine connection string. MONGODB_SETTINGS = {
+# The MongoEngine connection settings.
+MONGODB_SETTINGS = {
     "DB": "tfc",
     "host": "localhost",
 }
