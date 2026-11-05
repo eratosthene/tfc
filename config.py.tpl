@@ -12,18 +12,13 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 # Your app secret key. Use a long random value and keep it out of git.
 SECRET_KEY = "change-me-to-a-long-random-value"
 
-# The MongoEngine connection string. This is replaced by the SQLAlchemy
-# settings (SQLALCHEMY_DATABASE_URI) when the app moves to MariaDB.
-MONGODB_SETTINGS = {
+# The MongoEngine connection string. MONGODB_SETTINGS = {
     "DB": "tfc",
     "host": "localhost",
 }
 
 # Root log level (DEBUG, INFO, WARNING, ERROR)
-LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
-
-# Used once the app moves to MariaDB; Compose supplies it from .env.
-SQLALCHEMY_DATABASE_URI = os.environ.get("SQLALCHEMY_DATABASE_URI", "")
+LOG_LEVEL = "INFO"
 
 # Flask-WTF flag for CSRF
 CSRF_ENABLED = True
@@ -61,13 +56,3 @@ UPLOAD_FOLDER = os.path.join(basedir, "app", "static", "uploads") + os.sep
 IMG_UPLOAD_FOLDER = UPLOAD_FOLDER
 IMG_UPLOAD_URL = "/static/uploads/"
 # IMG_SIZE = (300, 200, True)
-
-# ---------------------------------------------------------------------------
-# Translations
-# ---------------------------------------------------------------------------
-# BABEL_DEFAULT_LOCALE = "en"
-# BABEL_DEFAULT_FOLDER = "translations"
-# LANGUAGES = {
-#     "en": {"flag": "gb", "name": "English"},
-#     "pt": {"flag": "pt", "name": "Portuguese"},
-# }
