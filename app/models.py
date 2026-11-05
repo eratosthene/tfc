@@ -24,7 +24,6 @@ class Franchise(Document):
             return Markup('')
 
     def image_thumb_show(self):
-        print(self.image, self.id)
         if self.image:
             return Markup('<a href="' + url_for('FranchiseModelView.show',pk=str(self.id)) + \
                       '" class="thumbnail"><img src="' + url_for('FranchiseModelView.img_thumb', pk=str(self.id)) + \
@@ -61,7 +60,6 @@ class Faction(Document):
             return Markup('')
 
     def image_thumb_show(self):
-        print(self.image, self.id)
         if self.image:
             return Markup('<a href="' + url_for('FactionModelView.show',pk=str(self.id)) + \
                       '" class="thumbnail"><img src="' + url_for('FactionModelView.img_thumb', pk=str(self.id)) + \
@@ -204,7 +202,6 @@ class Figure(Document):
             return Markup('')
 
     def image_thumb_show(self):
-        print(self.image, self.id)
         if self.image:
             return Markup('<a href="' + url_for('FigureModelView.img',pk=str(self.id)) + \
                       '" class="thumbnail" target="_blank"><img src="' + url_for('FigureModelView.img_thumb', pk=str(self.id)) + \

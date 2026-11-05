@@ -19,6 +19,12 @@ MONGODB_SETTINGS = {
     "host": "localhost",
 }
 
+# Root log level (DEBUG, INFO, WARNING, ERROR)
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+
+# Used once the app moves to MariaDB; Compose supplies it from .env.
+SQLALCHEMY_DATABASE_URI = os.environ.get("SQLALCHEMY_DATABASE_URI", "")
+
 # Flask-WTF flag for CSRF
 CSRF_ENABLED = True
 
