@@ -12,3 +12,9 @@ venv
 
 # Local settings with real secrets; copy config.py.tpl to start
 config.py
+
+# Environment and tool caches
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+app/static/uploads/
