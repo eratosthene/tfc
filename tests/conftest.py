@@ -24,7 +24,13 @@ assert_mongomock(_config.MONGODB_SETTINGS)
 
 from app import app as flask_app, appbuilder  # noqa: E402
 from app.models import (  # noqa: E402
-    Faction, Figure, Franchise, Tooling, Category, Accessory, TFWikiLink,
+    Faction,
+    Figure,
+    Franchise,
+    Tooling,
+    Category,
+    Accessory,
+    TFWikiLink,
 )
 
 TEST_USER = "tester"
@@ -49,34 +55,55 @@ def admin_user():
     sm = appbuilder.sm
     if not sm.find_user(username=TEST_USER):
         sm.add_user(
-            TEST_USER, "Test", "User", "tester@example.com",
-            sm.find_role(sm.auth_role_admin), TEST_PASSWORD,
+            TEST_USER,
+            "Test",
+            "User",
+            "tester@example.com",
+            sm.find_role(sm.auth_role_admin),
+            TEST_PASSWORD,
         )
     return TEST_USER
 
 
 @pytest.fixture
 def seed():
-    franchise = Franchise(name="Generation 1", start_year=1984, end_year=1990,
-                          link="https://example.com/g1").save()
+    franchise = Franchise(
+        name="Generation 1",
+        start_year=1984,
+        end_year=1990,
+        link="https://example.com/g1",
+    ).save()
     faction = Faction(name="Autobot").save()
     tooling = Tooling(name="Prime tooling").save()
     category = Category(name="Leader").save()
     accessory = Accessory(name="Blaster").save()
     character = TFWikiLink(
-        name="Optimus Prime", link="https://tfwiki.net/wiki/Optimus_Prime").save()
+        name="Optimus Prime", link="https://tfwiki.net/wiki/Optimus_Prime"
+    ).save()
     figure_link = TFWikiLink(
         name="Optimus Prime",
-        link="https://tfwiki.net/wiki/Optimus_Prime_(G1)#Generation_1").save()
+        link="https://tfwiki.net/wiki/Optimus_Prime_(G1)#Generation_1",
+    ).save()
     figure = Figure(
-        name="Optimus Prime", release_year=1984, franchise=[franchise],
-        character=character, figure_link=figure_link, tooling=[tooling],
-        faction=faction, categories=[category], accessories=[accessory],
+        name="Optimus Prime",
+        release_year=1984,
+        franchise=[franchise],
+        character=character,
+        figure_link=figure_link,
+        tooling=[tooling],
+        faction=faction,
+        categories=[category],
+        accessories=[accessory],
     ).save()
     return {
-        "franchise": franchise, "faction": faction, "tooling": tooling,
-        "category": category, "accessory": accessory, "character": character,
-        "figure_link": figure_link, "figure": figure,
+        "franchise": franchise,
+        "faction": faction,
+        "tooling": tooling,
+        "category": category,
+        "accessory": accessory,
+        "character": character,
+        "figure_link": figure_link,
+        "figure": figure,
     }
 
 
@@ -87,7 +114,8 @@ def client():
 
 @pytest.fixture
 def auth_client(client, admin_user):
-    resp = client.post("/login/", data={"username": admin_user,
-                                        "password": TEST_PASSWORD})
+    resp = client.post(
+        "/login/", data={"username": admin_user, "password": TEST_PASSWORD}
+    )
     assert resp.status_code in (200, 302)
     return client

@@ -4,6 +4,7 @@ conftest.py registers this module as ``config`` before ``app`` is imported,
 so ``app.config.from_object('config')`` loads these values and the tests
 never need (or read) a developer's real config.py.
 """
+
 from flask_appbuilder.security.manager import AUTH_DB
 
 SECRET_KEY = "test-secret-key"
