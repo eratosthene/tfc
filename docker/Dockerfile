@@ -6,7 +6,7 @@ FROM tiangolo/uwsgi-nginx-flask:python3.7
 COPY ./requirements.txt /requirements.txt
 RUN pip install --upgrade -r /requirements.txt
 
-ENV STATIC_PATH /usr/local/lib/python3.7/site-packages/flask_appbuilder/static
+ENV STATIC_PATH=/usr/local/lib/python3.7/site-packages/flask_appbuilder/static
 ENV LISTEN_PORT=9999
 # For `flask db upgrade` and `flask fab create-admin` inside the container.
 ENV FLASK_APP=app
