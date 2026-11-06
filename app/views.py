@@ -1,4 +1,4 @@
-from flask import render_template, make_response, Response
+from flask import render_template, Response
 from flask_appbuilder import ModelView, expose, has_access, permission_name
 from flask_appbuilder.models.mongoengine.interface import MongoEngineInterface
 from app import appbuilder

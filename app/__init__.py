@@ -20,4 +20,4 @@ appbuilder = AppBuilder(
     app, security_manager_class=SecurityManager, indexview=MyIndexView
 )
 
-from app import views
+from app import views  # noqa: E402, F401 (registers views after appbuilder setup)

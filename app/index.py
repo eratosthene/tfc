@@ -1,6 +1,5 @@
 from flask_appbuilder import IndexView
 from flask_appbuilder.views import expose
-from flask_appbuilder.models.mongoengine.interface import MongoEngineInterface
 from app.models import Figure, Franchise, Faction, Tooling, Category
 
 

@@ -3,11 +3,9 @@ from mongoengine import Document
 from mongoengine import (
     StringField,
     ImageField,
-    FloatField,
     URLField,
     ReferenceField,
     IntField,
-    BooleanField,
     ListField,
 )
 
@@ -291,17 +289,17 @@ class Figure(Document):
 
     def link_list_show(self, link_list, hasimg=False):
         m = '<table class="table table-condensed table-striped"><tbody>'
-        for l in link_list:
-            m += '<tr><td><a href="' + str(l.link) + '">'
-            if hasimg and l.image:
+        for item in link_list:
+            m += '<tr><td><a href="' + str(item.link) + '">'
+            if hasimg and item.image:
                 m += (
                     '<img src="'
-                    + url_for("FranchiseModelView.img", pk=str(l.id))
+                    + url_for("FranchiseModelView.img", pk=str(item.id))
                     + '" alt="'
-                    + str(l.name)
+                    + str(item.name)
                     + '" class="img-responsive"><br/>'
                 )
-            m += str(l) + "</a></td></tr>"
+            m += str(item) + "</a></td></tr>"
         m += "</tbody></table>"
         return Markup(m)
 

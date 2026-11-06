@@ -1,0 +1,58 @@
+exclude: |
+  (?x)^(
+      .*cache.*/.*|       # Exclude cache directories
+      .*venv.*/.*         # Exclude virtual environment directories
+  )$
+fail_fast: true
+default_language_version:
+  python: python3.12
+# The quick checks run on each commit, the test suite on each push.
+default_install_hook_types:
+  - pre-commit
+  - pre-push
+# Hooks that don't name a stage run on commit only, not again on push.
+default_stages: [pre-commit]
+# Same setup as fbc2, trimmed to the file types this repo has. check-github-workflows
+# and mdformat are left out until there are workflows or Markdown files to check.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    # v8.22's regex library can panic when built with Go 1.24 or later, as
+    # pre-commit does; gitleaks v8.24 and later fix it.
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+        name: "🔒 security · Detect hardcoded secrets"
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.1
+    hooks:
+      - id: ruff-format
+        name: "🐍 python · Format with Ruff"
+      - id: ruff
+        name: "🐍 python · Lint and perform safe auto-fixes with Ruff"
+        args: [--fix]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-executables-have-shebangs
+        name: "📁 filesystem/⚙️ exec · Verify shebang presence"
+      - id: check-shebang-scripts-are-executable
+        name: "📁 filesystem/⚙️ exec · Verify script permissions"
+      - id: check-case-conflict
+        name: "📁 filesystem/📝 names · Check case sensitivity"
+      - id: check-illegal-windows-names
+        name: "📁 filesystem/📝 names · Validate Windows filenames"
+      - id: check-symlinks
+        name: "📁 filesystem/🔗 symlink · Check symlink validity"
+      - id: destroyed-symlinks
+        name: "📁 filesystem/🔗 symlink · Detect broken symlinks"
+      - id: check-merge-conflict
+        name: "🌳 git · Detect conflict markers"
+      - id: forbid-new-submodules
+        name: "🌳 git · Prevent submodule creation"
+      - id: check-added-large-files
+        name: "🌳 git · Block large file commits"
+        args: ["--maxkb=5000"]
+
+  # The pytest pre-push hook is added once the test suite lands (sub-issue 4/5).
