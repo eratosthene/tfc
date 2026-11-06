@@ -1,0 +1,68 @@
+# The whole TFC stack: the app, MariaDB, and (temporarily) MongoDB.
+#
+#   cp .env.example .env && cp config.py.tpl config.py   # then fill both in
+#   docker compose up --build
+#
+# Compose reads .env from this folder for the ${...} values below. See
+# "Docker Compose" in README.rst for backups and restore.
+name: tfc
+
+services:
+  db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_DATABASE: tfc
+      MARIADB_USER: tfc
+      MARIADB_PASSWORD: ${TFC_DB_PASSWORD:?Set TFC_DB_PASSWORD in .env}
+      MARIADB_RANDOM_ROOT_PASSWORD: "yes"
+    volumes:
+      - db:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # TEMPORARY: the app still stores its data in MongoDB until sub-issue #7
+  # moves it to MariaDB. Remove this service, its volume and the app's
+  # depends_on entry once that migration is verified. Set host to "mongo" in
+  # MONGODB_SETTINGS in config.py while it is in use.
+  mongo:
+    image: mongo:4.4
+    volumes:
+      - mongo:/data/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongo", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  app:
+    build: .
+    image: tfc:latest
+    env_file: .env
+    environment:
+      # For when the app moves to MariaDB (sub-issue #7). Unused until then.
+      DATABASE_URL: mysql+pymysql://tfc:${TFC_DB_PASSWORD}@db/tfc
+    depends_on:
+      db:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./config.py:/app/config.py:ro
+      # UPLOAD_FOLDER in config.py.tpl; image files live here, not in the container.
+      - uploads:/app/app/static/uploads
+    ports:
+      # Loopback only; put a reverse proxy in front to expose it.
+      - "${TFC_BIND:-127.0.0.1}:${TFC_PORT:-9999}:9999"
+
+volumes:
+  db:
+  mongo:
+  uploads:
