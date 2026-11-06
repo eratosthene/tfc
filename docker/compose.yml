@@ -31,12 +31,14 @@ services:
         # Fail if it's missing, rather than make an empty folder in its place.
         bind:
           create_host_path: false
-      # UPLOAD_FOLDER in config.py.tpl: image files live here, not in the
-      # container. scripts/backup.sh archives it.
-      - uploads:/app/app/static/uploads
+      # UPLOAD_FOLDER in config.py.tpl: image files live in the uploads folder
+      # at the repo root, not in the container. Make it before the first start.
+      # scripts/backup.sh archives it.
+      - type: bind
+        source: ../uploads
+        target: /app/app/static/uploads
+        bind:
+          create_host_path: false
     ports:
       # Same port inside and out; fbc2 uses 20000 and vc 19999.
       - "9999:9999"
-
-volumes:
-  uploads:
