@@ -19,3 +19,7 @@ __pycache__/
 .ruff_cache/
 app/static/uploads/
 .venv
+
+# Compose settings and backups
+docker/.env
+backups/
