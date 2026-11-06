@@ -46,7 +46,6 @@ jobs:
       # so this step fails today. It is report-only until the dependency
       # upgrade lands; then delete the line so a finding fails the job.
       - uses: pypa/gh-action-pip-audit@v1.1.0
-        continue-on-error: true
         with:
           inputs: locked-requirements.txt
           no-deps: true

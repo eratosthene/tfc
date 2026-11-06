@@ -1,8 +1,6 @@
 FROM tiangolo/uwsgi-nginx-flask:python3.7
 
-RUN apt-get update \
-  && apt-get install -y ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+# (throwaway: PR #18's Dockerfile change)
 
 COPY ./requirements.txt /requirements.txt
 RUN pip install --upgrade -r /requirements.txt
