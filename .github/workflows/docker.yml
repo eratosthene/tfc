@@ -1,0 +1,52 @@
+name: Docker build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          load: true
+          tags: tfc:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The app needs a database and config.py, so skip the entrypoint and
+      # just check the packages it runs on import, and that config.py, which
+      # holds the live credentials, isn't in the image.
+      - name: Check the image's packages import
+        run: >-
+          docker run --rm --entrypoint python tfc:ci -c
+          "import os, flask_appbuilder, flask_mongoengine, mongoengine, PIL, dotenv;
+          assert not os.path.exists('/app/config.py'), 'config.py is in the image'"
+
+      # Catches OS-package and base-image issues. Report-only for now: the
+      # base image (tiangolo/uwsgi-nginx-flask:python3.7) is end-of-life, so
+      # this finds a lot until it is replaced. Set exit-code to "1" then.
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: tfc:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0"
