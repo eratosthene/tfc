@@ -1,6 +1,6 @@
 # The whole TFC stack: the app, MariaDB, and (temporarily) MongoDB.
 #
-#   cp .env.example .env && cp config.py.tpl config.py   # then fill both in
+#   cp .env.example .env && cp config.py.tpl config.py   # then fill in config.py
 #   docker compose up --build
 #
 # Compose reads .env from this folder for the ${...} values below. See
@@ -8,15 +8,21 @@
 name: tfc
 
 services:
+  # Not started by default: the app does not use MariaDB until sub-issue #7.
+  # Start it with `docker compose --profile db up`. User, password and database
+  # come from SQLALCHEMY_DATABASE_URI in .env (see docker/db-env.sh).
   db:
+    profiles: ["db"]
     image: mariadb:10.11
+    entrypoint: ["/db-entrypoint.sh"]
+    command: ["mariadbd"]
     environment:
-      MARIADB_DATABASE: tfc
-      MARIADB_USER: tfc
-      MARIADB_PASSWORD: ${TFC_DB_PASSWORD:?Set TFC_DB_PASSWORD in .env}
+      SQLALCHEMY_DATABASE_URI: ${SQLALCHEMY_DATABASE_URI:-}
       MARIADB_RANDOM_ROOT_PASSWORD: "yes"
     volumes:
       - db:/var/lib/mysql
+      - ./docker/db-env.sh:/db-env.sh:ro
+      - ./docker/db-entrypoint.sh:/db-entrypoint.sh:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
@@ -45,12 +51,11 @@ services:
     build: .
     image: tfc:latest
     env_file: .env
-    environment:
-      # For when the app moves to MariaDB (sub-issue #7). Unused until then.
-      DATABASE_URL: mysql+pymysql://tfc:${TFC_DB_PASSWORD}@db/tfc
     depends_on:
+      # Only waited for when the db profile is on (see the db service).
       db:
         condition: service_healthy
+        required: false
       mongo:
         condition: service_healthy
     restart: unless-stopped

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Back up TFC: a MariaDB dump and an archive of the uploads folder, as a
-# matching pair of dated files in backups/ (git-ignored). A backup needs both.
+# set of dated files in backups/ (git-ignored). A backup needs all of them.
 # While the app still uses MongoDB (until sub-issue #7), a mongodump archive
 # is taken too, if the mongo service is running.
 #
@@ -15,10 +15,13 @@ out="${BACKUP_DIR:-backups}"
 stamp="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$out"
 
-# The password is already in the db container's environment.
-docker compose exec -T db sh -c \
-  'exec mariadb-dump --single-transaction --routines -u"$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE"' \
-  | gzip > "$out/tfc-db-$stamp.sql.gz.part"
+# The db service is optional until sub-issue #7, so only dump it if it runs.
+# Its credentials come from SQLALCHEMY_DATABASE_URI via /db-env.sh.
+if docker compose ps --status running --services | grep -qx db; then
+  docker compose exec -T db sh -c \
+    '. /db-env.sh; exec mariadb-dump --single-transaction --routines -u"$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE"' \
+    | gzip > "$out/tfc-db-$stamp.sql.gz.part"
+fi
 
 docker compose exec -T app tar czf - -C /app/app/static uploads \
   > "$out/tfc-uploads-$stamp.tar.gz.part"
@@ -31,6 +34,6 @@ fi
 
 # Rename only once everything succeeded, so a half-finished backup never
 # looks complete.
-mv "$out/tfc-db-$stamp.sql.gz.part" "$out/tfc-db-$stamp.sql.gz"
+[ ! -e "$out/tfc-db-$stamp.sql.gz.part" ] || mv "$out/tfc-db-$stamp.sql.gz.part" "$out/tfc-db-$stamp.sql.gz"
 mv "$out/tfc-uploads-$stamp.tar.gz.part" "$out/tfc-uploads-$stamp.tar.gz"
 echo "Backup $stamp written to $out/"

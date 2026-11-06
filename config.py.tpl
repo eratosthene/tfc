@@ -18,6 +18,12 @@ MONGODB_SETTINGS = {
     "host": "localhost",
 }
 
+# The SQLAlchemy connection string, for after the MariaDB migration (unused
+# until then). The Compose stack sets it from .env; otherwise this one is used.
+SQLALCHEMY_DATABASE_URI = os.environ.get(
+    "SQLALCHEMY_DATABASE_URI", "mysql+pymysql://user:password@host/db"
+)
+
 # Root log level (DEBUG, INFO, WARNING, ERROR)
 LOG_LEVEL = "INFO"
 
