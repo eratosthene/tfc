@@ -12,17 +12,14 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 # Your app secret key. Use a long random value and keep it out of git.
 SECRET_KEY = "change-me-to-a-long-random-value"
 
-# The MongoEngine connection settings.
-MONGODB_SETTINGS = {
-    "DB": "tfc",
-    "host": "localhost",
-}
-
-# The SQLAlchemy connection string, for after the MariaDB migration (unused
-# until then). The Compose stack sets it from .env; otherwise this one is used.
+# The SQLAlchemy connection string. Use utf8mb4, as below, so any character
+# can be stored. The Compose stack sets it from docker/.env; otherwise this one
+# is used.
 SQLALCHEMY_DATABASE_URI = os.environ.get(
-    "SQLALCHEMY_DATABASE_URI", "mysql+pymysql://user:password@host/db"
+    "SQLALCHEMY_DATABASE_URI",
+    "mysql+pymysql://user:password@host/db?charset=utf8mb4",
 )
+SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # Root log level (DEBUG, INFO, WARNING, ERROR)
 LOG_LEVEL = "INFO"
@@ -62,4 +59,5 @@ AUTH_USER_REGISTRATION = False
 UPLOAD_FOLDER = os.path.join(basedir, "app", "static", "uploads") + os.sep
 IMG_UPLOAD_FOLDER = UPLOAD_FOLDER
 IMG_UPLOAD_URL = "/static/uploads/"
-# IMG_SIZE = (300, 200, True)
+# Each model sets its own full and thumbnail sizes; IMG_SIZE is the fallback.
+IMG_SIZE = (2000, 2000, False)

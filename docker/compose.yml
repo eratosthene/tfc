@@ -7,10 +7,13 @@
 # docker/.env, next to this file, is passed to the app as environment (for
 # example SQLALCHEMY_DATABASE_URI, see config.py.tpl). A change to either
 # needs the container recreated, not a rebuild: `docker/live-up.sh -n`.
-# There is no database service: MongoDB is a separate container on the server
-# (MONGODB_SETTINGS in config.py), and after sub-issue #7 the MariaDB server's
-# database is reached through SQLALCHEMY_DATABASE_URI. Paths here are relative
-# to this file's folder, docker/.
+# There is no database service: the app uses the MariaDB server's database,
+# reached through SQLALCHEMY_DATABASE_URI (docker/.env, or config.py). Create
+# its tables on a new database, and after each update that has a new migration:
+#
+#   docker compose -f docker/compose.yml exec tfc flask db upgrade
+#
+# Paths here are relative to this file's folder, docker/.
 name: tfc
 
 services:

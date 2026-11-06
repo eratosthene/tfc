@@ -8,9 +8,8 @@
 # The database is dumped from the compose stack's `db` service if it is
 # running (dev). Otherwise it is the server's own MariaDB, reached with the
 # SQLALCHEMY_DATABASE_URI in docker/.env, using mariadb-dump or mysqldump on
-# the host. MongoDB is a separate container and is not backed up here. Until
-# the MariaDB migration (sub-issue #7) there may be no URI, and the dump is
-# skipped with a warning. Run it from cron or launchd; it works from any
+# the host. MongoDB is no longer used and is not backed up here. With no URI the
+# dump is skipped with a warning. Run it from cron or launchd; it works from any
 # directory. Restore steps are in README.rst.
 set -euo pipefail
 

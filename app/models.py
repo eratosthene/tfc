@@ -1,29 +1,57 @@
-from flask import url_for, Markup
-from mongoengine import Document
-from mongoengine import (
-    StringField,
-    ImageField,
-    URLField,
-    ReferenceField,
-    IntField,
-    ListField,
-)
+from flask import url_for
+from flask_appbuilder.models.mixins import ImageColumn
+from markupsafe import Markup, escape
+from sqlalchemy import Column, ForeignKey, Integer, String, Table, event
+from sqlalchemy.orm import relationship
+
+from app import db
+
+# Every table is utf8mb4, so names and links can hold any character.
+TABLE_ARGS = {"mysql_charset": "utf8mb4", "mysql_collate": "utf8mb4_unicode_ci"}
 
 
-class Franchise(Document):
-    name = StringField(required=True)
-    link = URLField()
-    image = ImageField(
-        thumbnail_size=(100, 50, False), collection_name="franchise_images"
+def _table(name, *columns):
+    return Table(name, db.metadata, *columns, **TABLE_ARGS)
+
+
+def _position_table(name, left, right, left_fk, right_fk):
+    """An association table that keeps the order the items were saved in.
+
+    The right side is not cascaded: deleting a link or franchise that a figure
+    still uses is refused by the database, as it would leave a figure that
+    points at nothing.
+    """
+    return _table(
+        name,
+        Column(
+            left, Integer, ForeignKey(left_fk, ondelete="CASCADE"), primary_key=True
+        ),
+        Column(right, Integer, ForeignKey(right_fk), primary_key=True),
+        Column("position", Integer, nullable=False, default=0, server_default="0"),
     )
-    start_year = IntField(min_value=1900, max_value=3000, required=True)
-    end_year = IntField(min_value=1900, max_value=3000)
 
-    def __unicode__(self):
+
+class Named:
+    """__str__ and __repr__ as the name, which is what the views show."""
+
+    def __str__(self):
         return self.name
 
     def __repr__(self):
         return self.name
+
+
+class Franchise(Named, db.Model):
+    __tablename__ = "franchise"
+    __table_args__ = TABLE_ARGS
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False)
+    link = Column(String(500))
+    image = Column(
+        ImageColumn(thumbnail_size=(100, 50, False), size=(2000, 2000, False)),
+    )
+    start_year = Column(Integer, nullable=False)
+    end_year = Column(Integer)
 
     def image_show(self):
         if self.image:
@@ -50,7 +78,9 @@ class Franchise(Document):
             return Markup("")
 
     def link_show(self):
-        return Markup('<a href="' + str(self.link) + '">' + str(self.link) + "</a>")
+        if not self.link:
+            return Markup("")
+        return Markup('<a href="{0}">{0}</a>').format(self.link)
 
     def figure_list(self):
         return Markup(
@@ -60,17 +90,14 @@ class Franchise(Document):
         )
 
 
-class Faction(Document):
-    name = StringField(required=True)
-    image = ImageField(
-        thumbnail_size=(100, 50, False), collection_name="faction_images"
+class Faction(Named, db.Model):
+    __tablename__ = "faction"
+    __table_args__ = TABLE_ARGS
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False)
+    image = Column(
+        ImageColumn(thumbnail_size=(100, 50, False), size=(2000, 2000, False)),
     )
-
-    def __unicode__(self):
-        return self.name
-
-    def __repr__(self):
-        return self.name
 
     def image_show(self):
         if self.image:
@@ -104,14 +131,11 @@ class Faction(Document):
         )
 
 
-class Tooling(Document):
-    name = StringField(max_length=60, required=True, unique=True)
-
-    def __unicode__(self):
-        return self.name
-
-    def __repr__(self):
-        return self.name
+class Tooling(Named, db.Model):
+    __tablename__ = "tooling"
+    __table_args__ = TABLE_ARGS
+    id = Column(Integer, primary_key=True)
+    name = Column(String(60), nullable=False, unique=True)
 
     def figure_list(self):
         return Markup(
@@ -121,14 +145,11 @@ class Tooling(Document):
         )
 
 
-class Accessory(Document):
-    name = StringField(max_length=60, required=True, unique=True)
-
-    def __unicode__(self):
-        return self.name
-
-    def __repr__(self):
-        return self.name
+class Accessory(Named, db.Model):
+    __tablename__ = "accessory"
+    __table_args__ = TABLE_ARGS
+    id = Column(Integer, primary_key=True)
+    name = Column(String(60), nullable=False, unique=True)
 
     def figure_list(self):
         return Markup(
@@ -138,14 +159,11 @@ class Accessory(Document):
         )
 
 
-class Category(Document):
-    name = StringField(max_length=60, required=True, unique=True)
-
-    def __unicode__(self):
-        return self.name
-
-    def __repr__(self):
-        return self.name
+class Category(Named, db.Model):
+    __tablename__ = "category"
+    __table_args__ = TABLE_ARGS
+    id = Column(Integer, primary_key=True)
+    name = Column(String(60), nullable=False, unique=True)
 
     def figure_list(self):
         return Markup(
@@ -155,11 +173,17 @@ class Category(Document):
         )
 
 
-class TFWikiLink(Document):
-    name = StringField(required=True)
-    link = URLField(required=True)
+class TFWikiLink(db.Model):
+    __tablename__ = "tf_wiki_link"
+    __table_args__ = TABLE_ARGS
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False)
+    link = Column(String(500), nullable=False)
 
-    def __unicode__(self):
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
         ls = self.link.split("#")
         if len(ls) > 1:
             n = ls[0].split("/")[-1]
@@ -220,33 +244,91 @@ class TFWikiLink(Document):
             return Markup("")
 
 
-class Figure(Document):
-    name = StringField(required=True)
-    release_year = IntField(min_value=1900, max_value=3000, required=True)
-    image = ImageField(
-        thumbnail_size=(300, 300, False), collection_name="figure_images"
+# Many-to-many tables between a figure and the things it lists. Their
+# ``position`` column keeps the order the user picked, which the display
+# relies on (franchise order, packed-with order, ...).
+figure_franchise = _position_table(
+    "figure_franchise", "figure_id", "franchise_id", "figure.id", "franchise.id"
+)
+figure_tooling = _position_table(
+    "figure_tooling", "figure_id", "tooling_id", "figure.id", "tooling.id"
+)
+figure_history = _position_table(
+    "figure_history", "figure_id", "tf_wiki_link_id", "figure.id", "tf_wiki_link.id"
+)
+figure_packed_with = _position_table(
+    "figure_packed_with", "figure_id", "tf_wiki_link_id", "figure.id", "tf_wiki_link.id"
+)
+figure_accessory = _position_table(
+    "figure_accessory", "figure_id", "accessory_id", "figure.id", "accessory.id"
+)
+figure_category = _position_table(
+    "figure_category", "figure_id", "category_id", "figure.id", "category.id"
+)
+figure_gestalt = _position_table(
+    "figure_gestalt", "figure_id", "gestalt_id", "figure.id", "figure.id"
+)
+
+# (relationship name, association table) pairs whose order is kept.
+ORDERED = (
+    ("franchise", figure_franchise),
+    ("tooling", figure_tooling),
+    ("history", figure_history),
+    ("packed_with", figure_packed_with),
+    ("gestalt_of", figure_gestalt),
+    ("accessories", figure_accessory),
+    ("categories", figure_category),
+)
+
+
+class Figure(Named, db.Model):
+    __tablename__ = "figure"
+    __table_args__ = TABLE_ARGS
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False)
+    release_year = Column(Integer, nullable=False)
+    image = Column(
+        ImageColumn(thumbnail_size=(300, 300, False), size=(2000, 2000, False)),
     )
-    figure_link = ReferenceField("TFWikiLink")
-    franchise = ListField(ReferenceField("Franchise"), required=True)
-    character = ReferenceField("TFWikiLink", required=True)
-    tooling = ListField(ReferenceField("Tooling"), required=True)
-    faction = ReferenceField("Faction", required=True)
-    exclusive_to = StringField()
-    history = ListField(ReferenceField("TFWikiLink"))
-    packed_with = ListField(ReferenceField("TFWikiLink"))
-    hasbro_id = StringField()
-    takara_id = StringField()
-    gestalt_of = ListField(ReferenceField("self"))
-    accessories = ListField(ReferenceField("Accessory"))
-    categories = ListField(ReferenceField("Category"))
-    condition = StringField()
-    quantity = IntField(min_value=1, default=1)
+    figure_link_id = Column(Integer, ForeignKey("tf_wiki_link.id"))
+    character_id = Column(Integer, ForeignKey("tf_wiki_link.id"), nullable=False)
+    faction_id = Column(Integer, ForeignKey("faction.id"), nullable=False)
+    exclusive_to = Column(String(255))
+    hasbro_id = Column(String(255))
+    takara_id = Column(String(255))
+    condition = Column(String(255))
+    quantity = Column(Integer, default=1)
 
-    def __unicode__(self):
-        return self.name
-
-    def __repr__(self):
-        return self.name
+    figure_link = relationship("TFWikiLink", foreign_keys=[figure_link_id])
+    character = relationship("TFWikiLink", foreign_keys=[character_id])
+    faction = relationship("Faction")
+    franchise = relationship(
+        "Franchise", secondary=figure_franchise, order_by=figure_franchise.c.position
+    )
+    tooling = relationship(
+        "Tooling", secondary=figure_tooling, order_by=figure_tooling.c.position
+    )
+    history = relationship(
+        "TFWikiLink", secondary=figure_history, order_by=figure_history.c.position
+    )
+    packed_with = relationship(
+        "TFWikiLink",
+        secondary=figure_packed_with,
+        order_by=figure_packed_with.c.position,
+    )
+    gestalt_of = relationship(
+        "Figure",
+        secondary=figure_gestalt,
+        primaryjoin=id == figure_gestalt.c.figure_id,
+        secondaryjoin=id == figure_gestalt.c.gestalt_id,
+        order_by=figure_gestalt.c.position,
+    )
+    accessories = relationship(
+        "Accessory", secondary=figure_accessory, order_by=figure_accessory.c.position
+    )
+    categories = relationship(
+        "Category", secondary=figure_category, order_by=figure_category.c.position
+    )
 
     def image_show(self):
         if self.image:
@@ -273,35 +355,35 @@ class Figure(Document):
             return Markup("")
 
     def faction_show(self):
-        return Markup(
-            "<p>"
-            + str(self.faction)
-            + "</p>"
-            + '<img src="'
-            + url_for("FactionModelView.img_thumb", pk=str(self.faction.id))
-            + '" alt="'
-            + str(self.faction.name)
-            + '" class="img-responsive">'
-        )
+        if self.faction is None:
+            return Markup("")
+        m = Markup("<p>{}</p>").format(str(self.faction))
+        if self.faction.image:
+            m += Markup('<img src="{}" alt="{}" class="img-responsive">').format(
+                url_for("FactionModelView.img_thumb", pk=str(self.faction.id)),
+                self.faction.name,
+            )
+        return m
 
     def link_show(self, link):
-        return Markup('<a href="' + str(link.link) + '">' + str(link) + "</a>")
+        if link is None:
+            return Markup("")
+        return Markup('<a href="{}">{}</a>').format(link.link, str(link))
 
     def link_list_show(self, link_list, hasimg=False):
-        m = '<table class="table table-condensed table-striped"><tbody>'
+        m = Markup('<table class="table table-condensed table-striped"><tbody>')
         for item in link_list:
-            m += '<tr><td><a href="' + str(item.link) + '">'
+            m += Markup('<tr><td><a href="{}">').format(item.link)
             if hasimg and item.image:
-                m += (
-                    '<img src="'
-                    + url_for("FranchiseModelView.img", pk=str(item.id))
-                    + '" alt="'
-                    + str(item.name)
-                    + '" class="img-responsive"><br/>'
+                m += Markup(
+                    '<img src="{}" alt="{}" class="img-responsive"><br/>'
+                ).format(
+                    url_for("FranchiseModelView.img", pk=str(item.id)),
+                    item.name,
                 )
-            m += str(item) + "</a></td></tr>"
-        m += "</tbody></table>"
-        return Markup(m)
+            m += escape(str(item)) + Markup("</a></td></tr>")
+        m += Markup("</tbody></table>")
+        return m
 
     def character_show(self):
         return self.link_show(self.character)
@@ -317,3 +399,28 @@ class Figure(Document):
 
     def packed_with_show(self):
         return self.link_list_show(self.packed_with)
+
+
+@event.listens_for(db.session, "after_flush")
+def _save_positions(session, flush_context):
+    """Write each ordered list's ``position`` once its rows are inserted.
+
+    SQLAlchemy inserts the association rows but has no value for ``position``,
+    so number them here from the order of the list on the figure.
+    """
+    figures = [
+        o for o in list(session.new) + list(session.dirty) if isinstance(o, Figure)
+    ]
+    with session.no_autoflush:
+        for fig in figures:
+            for attr, table in ORDERED:
+                right = [c for c in table.c if c.primary_key and c.name != "figure_id"][
+                    0
+                ]
+                for pos, item in enumerate(getattr(fig, attr)):
+                    session.execute(
+                        table.update()
+                        .where(table.c.figure_id == fig.id)
+                        .where(right == item.id)
+                        .values(position=pos)
+                    )
