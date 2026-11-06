@@ -1,0 +1,41 @@
+# The live server's container, on the shared server that also runs fbc2 and vc.
+# Run from the repo root:
+#
+#   docker/live-up.sh
+#
+# Settings aren't in the image: config.py is mounted from the repo root, and
+# docker/.env, next to this file, is passed to the app as environment (for
+# example SQLALCHEMY_DATABASE_URI, see config.py.tpl). A change to either
+# needs the container recreated, not a rebuild: `docker/live-up.sh -n`.
+# There is no database service: MongoDB is a separate container on the server
+# (MONGODB_SETTINGS in config.py), and after sub-issue #7 the MariaDB server's
+# database is reached through SQLALCHEMY_DATABASE_URI. Paths here are relative
+# to this file's folder, docker/.
+name: tfc
+
+services:
+  tfc:
+    image: tfc:latest
+    build:
+      context: ..
+    restart: unless-stopped
+    # Required: the live server's Compose (2.20) can't make it optional. An
+    # empty one is fine; docker/live-up.sh makes one if it's missing.
+    env_file: .env
+    volumes:
+      - type: bind
+        source: ../config.py
+        target: /app/config.py
+        read_only: true
+        # Fail if it's missing, rather than make an empty folder in its place.
+        bind:
+          create_host_path: false
+      # UPLOAD_FOLDER in config.py.tpl: image files live here, not in the
+      # container. scripts/backup.sh archives it.
+      - uploads:/app/app/static/uploads
+    ports:
+      # Same port inside and out; fbc2 uses 20000 and vc 19999.
+      - "9999:9999"
+
+volumes:
+  uploads:

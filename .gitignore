@@ -18,8 +18,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 app/static/uploads/
+.venv
 
 # Compose settings and backups
-.env
+docker/.env
 backups/
-.venv
