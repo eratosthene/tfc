@@ -1,0 +1,12 @@
+# BuildKit reads this in place of a .dockerignore at the root of the build
+# context (the repo root), because it sits next to docker/Dockerfile.
+**/__pycache__
+**/*.pyc
+# Local-only files with credentials or data. config.py is mounted into the
+# container, never built into the image.
+config.py
+**/.env
+backups/
+app/static/uploads/
+.git/
+.claude/

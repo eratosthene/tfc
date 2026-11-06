@@ -1,8 +1,7 @@
 FROM tiangolo/uwsgi-nginx-flask:python3.7
 
-RUN apt-get update \
-  && apt-get install -y ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+# ca-certificates is already in the base image; an apt-get upgrade of it
+# fails now that the Debian 11 security mirror no longer carries the package.
 
 COPY ./requirements.txt /requirements.txt
 RUN pip install --upgrade -r /requirements.txt
