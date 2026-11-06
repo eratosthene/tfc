@@ -18,6 +18,7 @@ services:
     image: tfc:latest
     build:
       context: ..
+      dockerfile: docker/Dockerfile
     restart: unless-stopped
     # Required: the live server's Compose (2.20) can't make it optional. An
     # empty one is fine; docker/live-up.sh makes one if it's missing.

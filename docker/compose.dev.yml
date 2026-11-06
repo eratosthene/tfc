@@ -37,6 +37,7 @@ services:
   tfc:
     build:
       context: ..
+      dockerfile: docker/Dockerfile
     image: tfc:dev
     env_file: .env
     depends_on:
