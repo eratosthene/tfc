@@ -27,12 +27,13 @@ database is reached through ``SQLALCHEMY_DATABASE_URI`` once the migration
 First-time setup, from the repo root::
 
 	cp config.py.tpl config.py              # set SECRET_KEY and the Mongo host
+	mkdir uploads                           # image files; mounted into the container
 	cp docker/.env.example docker/.env      # optional for now; may be empty
 	docker/live-up.sh                       # build and start, on port 9999
 
 ``config.py`` is mounted read-only. ``docker/.env`` is passed to the app as
 environment and can hold ``SQLALCHEMY_DATABASE_URI`` (single-quote the value).
-Uploaded images live in the ``uploads`` volume. ``docker/live-logs.sh`` follows
+Uploaded images live in the ``uploads`` folder at the repo root (git-ignored). ``docker/live-logs.sh`` follows
 the logs, ``docker/live-down.sh`` stops the app, and ``docker/live-up.sh -n``
 recreates it without a rebuild after changing ``config.py`` or ``docker/.env``.
 Create the first user with::

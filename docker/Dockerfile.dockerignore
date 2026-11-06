@@ -8,5 +8,6 @@ config.py
 **/.env
 backups/
 app/static/uploads/
+uploads/
 .git/
 .claude/
