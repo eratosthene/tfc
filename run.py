@@ -1,7 +1,6 @@
 from app import app
 
-if __name__ == '__main__':
-#    from werkzeug.middleware.profiler import ProfilerMiddleware
-#    app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[5], profile_dir='./profile')
-    app.run(host='0.0.0.0', port=5000, debug=True)
-
+if __name__ == "__main__":
+    #    from werkzeug.middleware.profiler import ProfilerMiddleware
+    #    app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[5], profile_dir='./profile')
+    app.run(host="0.0.0.0", port=5000, debug=True)
