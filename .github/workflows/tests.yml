@@ -56,13 +56,16 @@ jobs:
           pipenv requirements --dev > locked-requirements.txt
           python -m pip install -r locked-requirements.txt pymongo==4.6.3
 
+      # --cov-fail-under is the coverage floor: app/ is at 100% line coverage, so
+      # any new code needs tests. Lower it only on purpose.
+      #
       # TEST_DATABASE_URI is read by tests/test_config.py (without it the tests
       # use in-memory SQLite). tests/test_migrations.py runs the migrations on
       # this database and checks they match the models.
       - name: Run tests
         run: >-
           python -m pytest -v --color=yes
-          --cov=app --cov-report=term-missing
+          --cov=app --cov-report=term-missing --cov-fail-under=100
         env:
           PYTHONUNBUFFERED: "1"
           TEST_MONGO_URI: mongodb://127.0.0.1:27017

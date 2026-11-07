@@ -1,0 +1,12 @@
+# Coverage is measured for app/ only (--cov=app in CI and the README). Not
+# measured, by design:
+#   migrations/  Alembic revisions, checked by tests/test_migrations.py instead
+#   scripts/     one-off tools (scripts/migrate_mongo_to_sql.py has its own tests)
+#   tests/       the tests themselves
+[run]
+source = app
+omit =
+    app/static/*
+
+[report]
+show_missing = true

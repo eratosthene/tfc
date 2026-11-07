@@ -41,3 +41,8 @@ def test_upload_path_traversal_is_refused(client, tmp_path, monkeypatch):
 def test_flask_appbuilder_static_assets_are_served(client):
     resp = client.get("/static/appbuilder/css/flags/flags16.css")
     assert resp.status_code == 200
+
+
+def test_upload_route_without_a_folder_is_404(client, monkeypatch):
+    monkeypatch.setitem(flask_app.config, "UPLOAD_FOLDER", None)
+    assert client.get("/static/uploads/anything.png").status_code == 404
