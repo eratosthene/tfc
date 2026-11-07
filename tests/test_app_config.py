@@ -11,6 +11,8 @@ import subprocess
 import sys
 import textwrap
 
+import pytest
+
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REQUIRED = [
@@ -93,11 +95,30 @@ def test_app_loads_a_complete_config(tmp_path):
     assert proc.stdout.strip().endswith("from-file")
 
 
-def test_other_settings_are_not_enforced(tmp_path):
-    # Documents today's behavior: only the import of config.py is checked.
-    # SECRET_KEY, the database URI and UPLOAD_FOLDER are not required by the
-    # app, so a config without them still loads (and Flask-SQLAlchemy falls
-    # back to an in-memory SQLite database).
+def test_missing_database_uri_fails_with_a_clear_message(tmp_path):
     proc = _run_app_import(tmp_path, 'SECRET_KEY = "only-this"\n')
-    assert proc.returncode == 0, proc.stderr
-    assert "only-this" in proc.stdout
+    assert proc.returncode != 0
+    assert "RuntimeError: SQLALCHEMY_DATABASE_URI is not set" in proc.stderr
+    assert "config.py.tpl" in proc.stderr
+
+
+def test_empty_database_uri_is_refused_too(tmp_path):
+    proc = _run_app_import(tmp_path, 'SECRET_KEY = "x"\nSQLALCHEMY_DATABASE_URI = ""\n')
+    assert proc.returncode != 0
+    assert "SQLALCHEMY_DATABASE_URI is not set" in proc.stderr
+
+
+@pytest.mark.parametrize(
+    "config", [{}, {"SQLALCHEMY_DATABASE_URI": ""}, {"SQLALCHEMY_DATABASE_URI": None}]
+)
+def test_require_database_uri_raises(config):
+    from app import require_database_uri
+
+    with pytest.raises(RuntimeError, match="SQLALCHEMY_DATABASE_URI is not set"):
+        require_database_uri(config)
+
+
+def test_require_database_uri_accepts_a_value():
+    from app import require_database_uri
+
+    require_database_uri({"SQLALCHEMY_DATABASE_URI": "sqlite://"})
