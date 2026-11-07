@@ -15,6 +15,23 @@ concurrency:
 jobs:
   pytest:
     runs-on: ubuntu-latest
+    # The tests run against a real MariaDB, as the app does. The database name
+    # ends in _test, which tests/guard.py requires before it will run.
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root-password
+          MARIADB_DATABASE: tfc_test
+          MARIADB_USER: tfc
+          MARIADB_PASSWORD: tfc-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
     steps:
       - uses: actions/checkout@v7
 
@@ -37,13 +54,15 @@ jobs:
           python -m pip install pipenv
           pipenv requirements > locked-requirements.txt
           python -m pip install -r locked-requirements.txt
-          python -m pip install pytest pytest-cov mongomock
+          python -m pip install pytest pytest-cov
 
-      # Tests run against mongomock (see tests/conftest.py); no database is
-      # needed. A MariaDB service container is added with the MariaDB work.
+      # TEST_DATABASE_URI is read by tests/test_config.py (without it the tests
+      # use in-memory SQLite). tests/test_migrations.py runs the migrations on
+      # this database and checks they match the models.
       - name: Run tests
         run: >-
           python -m pytest -v --color=yes
           --cov=app --cov-report=term-missing
         env:
           PYTHONUNBUFFERED: "1"
+          TEST_DATABASE_URI: mysql+pymysql://tfc:tfc-password@127.0.0.1:3306/tfc_test?charset=utf8mb4

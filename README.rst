@@ -1,5 +1,5 @@
-Base Skeleton to start your application using Flask-AppBuilder and MongoEngine
-------------------------------------------------------------------------------
+TFC: a Transformers collection app, on Flask-AppBuilder and MariaDB
+--------------------------------------------------------------------
 
 - Install it::
 
@@ -19,40 +19,60 @@ Docker
 ------
 
 TFC runs the same way as fbc2 and vc on the shared server: one app container
-from ``docker/compose.yml``, with no database service. MongoDB is a separate
-container (``MONGODB_SETTINGS`` in ``config.py``), and the MariaDB server's
-database is reached through ``SQLALCHEMY_DATABASE_URI`` once the migration
-(sub-issue #7) lands. Until then the URI is optional.
+from ``docker/compose.yml``, with no database service. The data is in the
+MariaDB server's database, reached through ``SQLALCHEMY_DATABASE_URI`` (in
+``docker/.env`` or ``config.py``, ending in ``?charset=utf8mb4``). Image files
+are stored in the ``uploads`` folder, and the tables hold only their file
+names.
 
 First-time setup, from the repo root::
 
-	cp config.py.tpl config.py              # set SECRET_KEY and the Mongo host
+	cp config.py.tpl config.py              # set SECRET_KEY
 	mkdir uploads                           # image files; mounted into the container
-	cp docker/.env.example docker/.env      # optional for now; may be empty
+	cp docker/.env.example docker/.env      # set SQLALCHEMY_DATABASE_URI
 	docker/live-up.sh                       # build and start, on port 9999
+	sudo docker compose -f docker/compose.yml exec tfc flask db upgrade
+	sudo docker compose -f docker/compose.yml exec tfc flask fab create-admin
 
 ``config.py`` is mounted read-only. ``docker/.env`` is passed to the app as
-environment and can hold ``SQLALCHEMY_DATABASE_URI`` (single-quote the value).
-Uploaded images live in the ``uploads`` folder at the repo root (git-ignored). ``docker/live-logs.sh`` follows
+environment (single-quote the value). ``docker/live-logs.sh`` follows
 the logs, ``docker/live-down.sh`` stops the app, and ``docker/live-up.sh -n``
 recreates it without a rebuild after changing ``config.py`` or ``docker/.env``.
-Create the first user with::
 
-	sudo docker compose -f docker/compose.yml exec tfc flask fab create-admin
+Database changes
+~~~~~~~~~~~~~~~~
+
+Tables are made and changed by Flask-Migrate (Alembic), in ``migrations/``.
+Flask-AppBuilder makes its own ``ab_*`` security tables when the app starts, so
+migrations leave them alone. Run ``flask db upgrade`` on a new database and
+after any update that adds a migration. After changing ``app/models.py``::
+
+	flask db migrate -m "What changed"      # writes migrations/versions/...; read it
+	flask db upgrade
+
+``flask db migrate`` writing nothing ("No changes in schema detected") means the
+migrations match the models. Users are made with ``flask fab create-admin``.
 
 Local testing
 ~~~~~~~~~~~~~
 
 ``docker/compose.dev.yml`` runs the app with its own throwaway MariaDB on
-127.0.0.1 (app on port 5561), for trying the migration. The database is behind
-the ``db`` profile, and its user, password and database come from
-``SQLALCHEMY_DATABASE_URI`` in ``docker/.env`` (host ``db``; avoid
-``@ : / % # ?`` in the password)::
+127.0.0.1 (app on port 5561). The database is behind the ``db`` profile, and
+its user, password and database come from ``SQLALCHEMY_DATABASE_URI`` in
+``docker/.env`` (host ``db``; avoid ``@ : / % # ?`` in the password)::
 
 	docker compose -f docker/compose.dev.yml --profile db up --build
+	docker compose -f docker/compose.dev.yml exec tfc flask db upgrade
+	docker compose -f docker/compose.dev.yml exec tfc flask fab create-admin
 
-The app still needs a MongoDB that ``config.py`` can reach; there is none in
-the stack.
+Tests
+~~~~~
+
+``python -m pytest`` runs against in-memory SQLite. To run them against MariaDB
+as CI does, point ``TEST_DATABASE_URI`` at an empty database whose name ends in
+``_test`` (the tests refuse any other)::
+
+	TEST_DATABASE_URI='mysql+pymysql://tfc:PASSWORD@127.0.0.1:3309/tfc_test?charset=utf8mb4' python -m pytest
 
 Backup
 ~~~~~~

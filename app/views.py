@@ -1,6 +1,9 @@
-from flask import render_template, Response
+import os
+
+from flask import abort, render_template, send_from_directory, current_app
 from flask_appbuilder import ModelView, expose, has_access, permission_name
-from flask_appbuilder.models.mongoengine.interface import MongoEngineInterface
+from flask_appbuilder.filemanager import thumbgen_filename
+from flask_appbuilder.models.sqla.interface import SQLAInterface
 from app import appbuilder
 from app.models import (
     Franchise,
@@ -13,8 +16,24 @@ from app.models import (
 )
 
 
+def send_image(item, thumbnail=False):
+    """Serve an item's image, or its thumbnail, from the upload folder.
+
+    The table holds only the file name; the thumbnail's name follows from it.
+    """
+    if item is None or not item.image:
+        abort(404)
+    folder = current_app.config["IMG_UPLOAD_FOLDER"]
+    name = item.image
+    if thumbnail:
+        thumb = thumbgen_filename(name)
+        if os.path.exists(os.path.join(folder, thumb)):
+            name = thumb
+    return send_from_directory(folder, name)
+
+
 class FranchiseModelView(ModelView):
-    datamodel = MongoEngineInterface(Franchise)
+    datamodel = SQLAInterface(Franchise)
     base_order = ("start_year", "desc")
     label_columns = {
         "image_thumb_show": "Picture",
@@ -36,23 +55,17 @@ class FranchiseModelView(ModelView):
     @has_access
     @permission_name("show_img")
     def img(self, pk):
-        item = self.datamodel.get(pk)
-        mime_type = item.image.content_type
-        return Response(item.image.read(), mimetype=mime_type, direct_passthrough=True)
+        return send_image(self.datamodel.get(pk))
 
     @expose("/franchise_img_thumb/<pk>")
     @has_access
     @permission_name("show_img")
     def img_thumb(self, pk):
-        item = self.datamodel.get(pk)
-        mime_type = item.image.content_type
-        return Response(
-            item.image.thumbnail.read(), mimetype=mime_type, direct_passthrough=True
-        )
+        return send_image(self.datamodel.get(pk), thumbnail=True)
 
 
 class FactionModelView(ModelView):
-    datamodel = MongoEngineInterface(Faction)
+    datamodel = SQLAInterface(Faction)
     base_order = ("name", "desc")
     label_columns = {
         "image_thumb_show": "Picture",
@@ -66,23 +79,17 @@ class FactionModelView(ModelView):
     @has_access
     @permission_name("show_img")
     def img(self, pk):
-        item = self.datamodel.get(pk)
-        mime_type = item.image.content_type
-        return Response(item.image.read(), mimetype=mime_type, direct_passthrough=True)
+        return send_image(self.datamodel.get(pk))
 
     @expose("/faction_img_thumb/<pk>")
     @has_access
     @permission_name("show_img")
     def img_thumb(self, pk):
-        item = self.datamodel.get(pk)
-        mime_type = item.image.content_type
-        return Response(
-            item.image.thumbnail.read(), mimetype=mime_type, direct_passthrough=True
-        )
+        return send_image(self.datamodel.get(pk), thumbnail=True)
 
 
 class ToolingModelView(ModelView):
-    datamodel = MongoEngineInterface(Tooling)
+    datamodel = SQLAInterface(Tooling)
     base_order = ("name", "desc")
     label_columns = {"figure_list": "Figures"}
     list_columns = ["name", "figure_list"]
@@ -90,7 +97,7 @@ class ToolingModelView(ModelView):
 
 
 class AccessoryModelView(ModelView):
-    datamodel = MongoEngineInterface(Accessory)
+    datamodel = SQLAInterface(Accessory)
     base_order = ("name", "desc")
     label_columns = {"figure_list": "Figures"}
     list_columns = ["name", "figure_list"]
@@ -98,7 +105,7 @@ class AccessoryModelView(ModelView):
 
 
 class CategoryModelView(ModelView):
-    datamodel = MongoEngineInterface(Category)
+    datamodel = SQLAInterface(Category)
     base_order = ("name", "desc")
     label_columns = {"figure_list": "Figures"}
     list_columns = ["name", "figure_list"]
@@ -106,7 +113,7 @@ class CategoryModelView(ModelView):
 
 
 class TFWikiLinkModelView(ModelView):
-    datamodel = MongoEngineInterface(TFWikiLink)
+    datamodel = SQLAInterface(TFWikiLink)
     base_order = ("name", "desc")
     label_columns = {"figure_list": "Figures", "history_list": "History"}
     list_columns = ["name", "link_type", "link", "figure_list", "history_list"]
@@ -114,7 +121,7 @@ class TFWikiLinkModelView(ModelView):
 
 
 class FigureModelView(ModelView):
-    datamodel = MongoEngineInterface(Figure)
+    datamodel = SQLAInterface(Figure)
     base_order = ("name", "desc")
     label_columns = {
         "image_thumb_show": "Picture",
@@ -160,19 +167,13 @@ class FigureModelView(ModelView):
     @has_access
     @permission_name("show_img")
     def img(self, pk):
-        item = self.datamodel.get(pk)
-        mime_type = item.image.content_type
-        return Response(item.image.read(), mimetype=mime_type, direct_passthrough=True)
+        return send_image(self.datamodel.get(pk))
 
     @expose("/figure_img_thumb/<pk>")
     @has_access
     @permission_name("show_img")
     def img_thumb(self, pk):
-        item = self.datamodel.get(pk)
-        mime_type = item.image.content_type
-        return Response(
-            item.image.thumbnail.read(), mimetype=mime_type, direct_passthrough=True
-        )
+        return send_image(self.datamodel.get(pk), thumbnail=True)
 
 
 appbuilder.add_view(FigureModelView, "Figures")

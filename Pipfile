@@ -6,13 +6,12 @@ verify_ssl = true
 [dev-packages]
 pytest = "*"
 pytest-cov = "*"
-mongomock = "*"
 pre-commit = "*"
 
 [packages]
 flask = "*"
-mongoengine = "*"
-flask-mongoengine = "*"
+flask-migrate = "<4"
+pymysql = "*"
 flask-restful = "*"
 flask-appbuilder = "*"
 pillow = "*"

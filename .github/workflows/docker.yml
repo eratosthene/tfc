@@ -37,7 +37,7 @@ jobs:
       - name: Check the image's packages import
         run: >-
           docker run --rm --entrypoint python tfc:ci -c
-          "import os, flask_appbuilder, flask_mongoengine, mongoengine, PIL, dotenv;
+          "import os, flask_appbuilder, flask_migrate, pymysql, PIL, dotenv;
           assert not os.path.exists('/app/config.py'), 'config.py is in the image'"
 
       # Catches OS-package and base-image issues. Report-only for now: the

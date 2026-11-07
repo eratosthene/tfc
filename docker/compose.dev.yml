@@ -3,13 +3,16 @@
 #
 #   docker compose -f docker/compose.dev.yml --profile db up --build
 #
-# It needs a docker/.env (see docker/.env.example). MariaDB is optional until
-# sub-issue #7 moves the app off MongoDB, so it is behind the `db` profile;
-# its user, password and database come from SQLALCHEMY_DATABASE_URI in
-# docker/.env (host "db"), see db-env.sh. The app still needs a MongoDB that
-# MONGODB_SETTINGS in config.py can reach; there isn't one here, since the
-# live server's is a separate container. Paths here are relative to this
-# file's folder, docker/. Ports are on 127.0.0.1 only.
+# It needs a docker/.env (see docker/.env.example). The MariaDB is behind the
+# `db` profile, so the app can also be pointed at another server; its user,
+# password and database come from SQLALCHEMY_DATABASE_URI in docker/.env (host
+# "db"), see db-env.sh. Make its tables, and the first user, with:
+#
+#   docker compose -f docker/compose.dev.yml exec tfc flask db upgrade
+#   docker compose -f docker/compose.dev.yml exec tfc flask fab create-admin
+#
+# Paths here are relative to this file's folder, docker/. Ports are on
+# 127.0.0.1 only.
 name: tfc-dev
 
 services:
@@ -17,7 +20,10 @@ services:
     profiles: ["db"]
     image: mariadb:10.11
     entrypoint: ["/db-entrypoint.sh"]
-    command: ["mariadbd"]
+    command:
+      - mariadbd
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
     environment:
       SQLALCHEMY_DATABASE_URI: ${SQLALCHEMY_DATABASE_URI:-}
       MARIADB_RANDOM_ROOT_PASSWORD: "yes"
