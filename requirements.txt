@@ -37,7 +37,7 @@ mako==1.2.4; python_version >= '3.7'
 markupsafe==2.0.1; python_version >= '3.6'
 marshmallow-enum==1.5.1
 marshmallow-sqlalchemy==0.26.1; python_version >= '3.6'
-marshmallow==3.14.1; python_version >= '3.6'
+marshmallow==3.26.2; python_version >= '3.6'
 pillow==9.0.1
 prison==0.2.1
 pyjwt==1.7.1
