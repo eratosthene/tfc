@@ -29,6 +29,7 @@ First-time setup, from the repo root::
 
 	cp config.py.tpl config.py              # set SECRET_KEY
 	mkdir uploads                           # image files; mounted into the container
+	sudo chown 1000 uploads                 # the container runs as UID 1000, not root
 	cp docker/.env.example docker/.env      # set SQLALCHEMY_DATABASE_URI
 	docker/live-up.sh                       # build and start, on port 9999
 	sudo docker compose -f docker/compose.yml exec tfc flask db upgrade
@@ -38,6 +39,38 @@ First-time setup, from the repo root::
 environment (single-quote the value). ``docker/live-logs.sh`` follows
 the logs, ``docker/live-down.sh`` stops the app, and ``docker/live-up.sh -n``
 recreates it without a rebuild after changing ``config.py`` or ``docker/.env``.
+
+Python and dependencies
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The app runs on Python 3.12 (``Pipfile``'s ``python_version``; the image is
+``python:3.12-slim``). It is served by gunicorn, as the non-root ``app`` user
+(UID 1000, build argument ``APP_UID``), on port 9999. There is no nginx: Flask
+serves Flask-AppBuilder's ``/static`` files, and ``/static/uploads/<file>`` from
+``UPLOAD_FOLDER`` (404 if the file is missing, and no path outside the folder).
+The mounted ``uploads`` folder must therefore be writable by that UID
+(``sudo chown -R 1000 uploads``), and ``config.py`` readable by it.
+
+``Pipfile.lock`` is the only list of dependencies; there is no
+``requirements.txt``. **The Dockerfile generates it**: its first stage runs
+``pipenv requirements --hash`` on the lock, and the app stage installs that with
+``--require-hashes``. CI's tests and audit export the lock the same way. To
+change a dependency, edit ``Pipfile``, run ``pipenv lock``, and commit both.
+
+Held back on purpose, for the upgrade sub-issues (11 to 13): Flask 1.1,
+Flask-AppBuilder 3.4, Flask-SQLAlchemy 2.5, SQLAlchemy 1.4, Flask-Migrate 3. The
+only bumps made for 3.12 are Pillow 10.4 (the first line with 3.12 wheels),
+PyYAML 6.0.3 (6.0 does not build), greenlet, and ``setuptools`` (Flask-AppBuilder's
+apispec 3.3 imports ``distutils``, removed in 3.12). Pillow 10 dropped
+``Image.ANTIALIAS``, which Flask-AppBuilder 3.4 still uses, so ``app/__init__.py``
+puts it back until Flask-AppBuilder is upgraded.
+
+``pip-audit`` on the lock (6 November 2026) reports 129 known vulnerabilities in
+seven packages: Pillow 10.4.0 (66), Werkzeug 1.0.1 (17), Flask-AppBuilder 3.4.5
+(16), PyJWT 1.7.1 (15), Jinja2 2.11.3 (8), Flask 1.1.4 (4), setuptools 80.10.2 (3). All are accepted for now,
+for one reason: the fixes need a major upgrade (Flask 2 or 3, Flask-AppBuilder
+4 or 5, Pillow 11 or later; setuptools is held below 81 for ``pkg_resources``, which Flask 1.1 needs to find ``flask fab``), which is sub-issues 11 to 13, and the Pillow fix also
+needs Flask-AppBuilder 4. The audit workflow stays report-only until then.
 
 Database changes
 ~~~~~~~~~~~~~~~~

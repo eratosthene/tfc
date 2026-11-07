@@ -9,10 +9,34 @@ pytest-cov = "*"
 pre-commit = "*"
 
 [packages]
-flask = "*"
+# Held at the majors the app already runs on; the major upgrades are
+# sub-issues 11 to 13.
+flask = "<2"
+flask-appbuilder = "<4"
 flask-migrate = "<4"
-pymysql = "*"
 flask-restful = "*"
-flask-appbuilder = "*"
-pillow = "*"
+flask-sqlalchemy = "<3"
+sqlalchemy = "<2"
+# SQLAlchemy 1.4 needs it only on some platforms, so a lock made on a Mac omits it.
+greenlet = "*"
+pymysql = "*"
+gunicorn = "*"
 python-dotenv = "*"
+# 10.1 is the first Pillow with Python 3.12 wheels.
+pillow = ">=10.1,<11"
+# Flask 1.1 imports things that Jinja2 3.1, Werkzeug 2.1+ and ItsDangerous 2.1+
+# removed.
+jinja2 = "<3.1"
+werkzeug = "<2.1"
+itsdangerous = "<2.1"
+markupsafe = "<2.1"
+# PyYAML 6.0 does not build on 3.12.
+pyyaml = ">=6.0.1"
+# apispec 3.3 (pinned by Flask-AppBuilder 3.4) imports distutils, which 3.12
+# removed; setuptools supplies it. Flask 1.1 also finds `flask fab` (a plugin
+# command) through pkg_resources, which setuptools 81 removed. Drop both with
+# the Flask upgrade.
+setuptools = "<81"
+
+[requires]
+python_version = "3.12"

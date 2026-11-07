@@ -1,6 +1,6 @@
 import logging
 
-from flask import Flask
+from flask import Flask, abort, send_from_directory
 from flask_appbuilder import AppBuilder
 from flask_appbuilder.models.sqla import CustomSignallingSession
 from flask_appbuilder.security.sqla.manager import SecurityManager
@@ -8,6 +8,7 @@ from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import orm
 from flask_migrate.cli import db as db_cli
+from PIL import Image
 
 """
  Logging configuration
@@ -20,6 +21,24 @@ app.config.from_object("config")
 app.config.setdefault("SQLALCHEMY_TRACK_MODIFICATIONS", False)
 
 logging.getLogger().setLevel(app.config.get("LOG_LEVEL", "INFO"))
+
+# Flask-AppBuilder 3.4 resizes images with Image.ANTIALIAS, which Pillow 10
+# removed (Pillow 10.1 is the first with Python 3.12 wheels). Put it back until
+# Flask-AppBuilder is upgraded.
+if not hasattr(Image, "ANTIALIAS"):
+    Image.ANTIALIAS = Image.LANCZOS
+
+
+# Image files (IMG_UPLOAD_URL, "/static/uploads/") are served from
+# UPLOAD_FOLDER, which in Docker is a mounted folder rather than part of the app.
+# This rule is more specific than Flask's own /static/<path>, so it wins.
+# send_from_directory refuses paths that climb out of the folder.
+@app.route("/static/uploads/<path:filename>")
+def uploaded_file(filename):
+    folder = app.config.get("UPLOAD_FOLDER")
+    if not folder:
+        abort(404)
+    return send_from_directory(folder, filename)
 
 
 # Our models use db.Model, with its own metadata; FAB creates its security

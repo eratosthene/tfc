@@ -29,9 +29,8 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.10"
+          python-version: "3.12"
 
-      # `--dev` is added once Pipfile.lock has dev packages in it.
       - name: Export Pipfile.lock as a requirements file
         run: |
           python -m pip install pipenv
@@ -41,10 +40,11 @@ jobs:
       # resolving (and installing) it again. The results also go in the job
       # summary.
       #
-      # continue-on-error: the current pins (Flask 1.1.2, Pillow 9.0.1,
-      # Werkzeug 2.0.3, ...) have well over a hundred known vulnerabilities,
-      # so this step fails today. It is report-only until the dependency
-      # upgrade lands; then delete the line so a finding fails the job.
+      # continue-on-error: the lock still has Flask 1.1, Flask-AppBuilder 3.4,
+      # Werkzeug 1.0, Jinja2 2.11, PyJWT 1.7 and Pillow 10.4 (about 129 known
+      # vulnerabilities, see "Dependencies" in the README), so this step fails
+      # today. It is report-only until the upgrades (sub-issues 11 to 13) land;
+      # then delete the line so a finding fails the job.
       - uses: pypa/gh-action-pip-audit@v1.1.0
         continue-on-error: true
         with:

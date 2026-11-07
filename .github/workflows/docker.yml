@@ -37,12 +37,12 @@ jobs:
       - name: Check the image's packages import
         run: >-
           docker run --rm --entrypoint python tfc:ci -c
-          "import os, flask_appbuilder, flask_migrate, pymysql, PIL, dotenv;
+          "import os, flask_appbuilder, flask_migrate, pymysql, PIL, dotenv, gunicorn;
           assert not os.path.exists('/app/config.py'), 'config.py is in the image'"
 
       # Catches OS-package and base-image issues. Report-only for now: the
-      # base image (tiangolo/uwsgi-nginx-flask:python3.7) is end-of-life, so
-      # this finds a lot until it is replaced. Set exit-code to "1" then.
+      # base image is python:3.12-slim now. Report-only until the scan has been
+      # seen clean in CI; then set exit-code to "1".
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
