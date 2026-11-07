@@ -36,7 +36,8 @@ services:
           create_host_path: false
       # UPLOAD_FOLDER in config.py.tpl: image files live in the uploads folder
       # at the repo root, not in the container. Make it before the first start.
-      # scripts/backup.sh archives it.
+      # scripts/backup.sh archives it. The app runs as UID 1000 (Dockerfile
+      # APP_UID), so `chown 1000 uploads` it.
       - type: bind
         source: ../uploads
         target: /app/app/static/uploads

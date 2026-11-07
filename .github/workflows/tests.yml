@@ -41,26 +41,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The app is still on its 2022-era pins (Flask 1.1, Pillow 9.0, PyYAML
-      # 6.0, ...). Python 3.10 is the newest version those have wheels for
-      # (PyYAML 6.0 doesn't build on 3.11+), and the oldest setup-python
-      # still offers on ubuntu-latest that Pipfile.lock installs on.
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.10"
+          python-version: "3.12"
           cache: pip
           cache-dependency-path: Pipfile.lock
 
-      # Pipfile.lock has no dev packages yet (it predates the test harness),
-      # so `pipenv install --dev --deploy`, as fbc2 does, would fail. Install
-      # the locked runtime packages, then the test tools from the Pipfile.
-      # Switch to `pipenv install --dev --deploy` once the lock is regenerated.
+      # Pipfile.lock is the source of truth: export it, dev packages included,
+      # and install exactly that. pymongo is only for the migration script's
+      # tests, not the app, so it is not in the lock.
       - name: Install dependencies
         run: |
           python -m pip install pipenv
-          pipenv requirements > locked-requirements.txt
-          python -m pip install -r locked-requirements.txt
-          python -m pip install pytest pytest-cov pymongo==4.6.3
+          pipenv requirements --dev > locked-requirements.txt
+          python -m pip install -r locked-requirements.txt pymongo==4.6.3
 
       # TEST_DATABASE_URI is read by tests/test_config.py (without it the tests
       # use in-memory SQLite). tests/test_migrations.py runs the migrations on
