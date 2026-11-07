@@ -20,6 +20,19 @@ app = Flask(__name__)
 app.config.from_object("config")
 app.config.setdefault("SQLALCHEMY_TRACK_MODIFICATIONS", False)
 
+
+def require_database_uri(config):
+    """Without it, Flask-SQLAlchemy quietly falls back to an in-memory SQLite
+    database and the app "works" while losing every change. Refuse to start."""
+    if not config.get("SQLALCHEMY_DATABASE_URI"):
+        raise RuntimeError(
+            "SQLALCHEMY_DATABASE_URI is not set. Set it in config.py (see "
+            "config.py.tpl) or in the SQLALCHEMY_DATABASE_URI environment variable."
+        )
+
+
+require_database_uri(app.config)
+
 logging.getLogger().setLevel(app.config.get("LOG_LEVEL", "INFO"))
 
 # Flask-AppBuilder 3.4 resizes images with Image.ANTIALIAS, which Pillow 10
