@@ -44,7 +44,7 @@ Python and dependencies
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 The app runs on Python 3.12 (``Pipfile``'s ``python_version``; the image is
-``python:3.12-slim``). It is served by gunicorn, as the non-root ``app`` user
+``python:3.12-alpine``, as in fbc2). It is served by gunicorn, as the non-root ``app`` user
 (UID 1000, build argument ``APP_UID``), on port 9999. There is no nginx: Flask
 serves Flask-AppBuilder's ``/static`` files, and ``/static/uploads/<file>`` from
 ``UPLOAD_FOLDER`` (404 if the file is missing, and no path outside the folder).
