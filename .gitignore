@@ -24,3 +24,4 @@ app/static/uploads/
 # Compose settings and backups
 docker/.env
 backups/
+.coverage

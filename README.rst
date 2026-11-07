@@ -107,6 +107,10 @@ as CI does, point ``TEST_DATABASE_URI`` at an empty database whose name ends in
 
 	TEST_DATABASE_URI='mysql+pymysql://tfc:PASSWORD@127.0.0.1:3309/tfc_test?charset=utf8mb4' python -m pytest
 
+CI also requires 100% line coverage of ``app/`` (``--cov=app --cov-fail-under=100``;
+see ``.coveragerc`` for what is not measured: ``migrations/``, ``scripts/`` and
+the tests). Check it locally with ``python -m pytest --cov=app --cov-report=term-missing``.
+
 Migrating the Mongo data
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
