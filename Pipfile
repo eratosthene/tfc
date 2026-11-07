@@ -9,10 +9,15 @@ pytest-cov = "*"
 pre-commit = "*"
 
 [packages]
-# Held at the majors the app already runs on; the major upgrades are
-# sub-issues 11 to 13.
-flask = "<2"
-flask-appbuilder = "<4"
+# Step 1 of the dependency upgrades (sub-issue 11). FAB 4.8.1 is the last 4.x;
+# it needs Flask <3. Flask 2.2.5 is the newest Flask that Flask-SQLAlchemy 2.5
+# (held by FAB 4.x, <3) still works with: Flask 2.3 removed _app_ctx_stack.
+# Werkzeug 2.3 is the newest Flask 2.2.5 supports (2.2.5 was released for
+# it) and the first with scrypt, which FAB 4.8 uses to hash new passwords.
+flask = "==2.2.5"
+flask-appbuilder = "==4.8.1"
+werkzeug = "==2.3.8"
+# The remaining majors are held for sub-issues 12 and 13.
 flask-migrate = "<4"
 flask-restful = "*"
 flask-sqlalchemy = "<3"
@@ -24,19 +29,8 @@ gunicorn = "*"
 python-dotenv = "*"
 # 10.1 is the first Pillow with Python 3.12 wheels.
 pillow = ">=10.1,<11"
-# Flask 1.1 imports things that Jinja2 3.1, Werkzeug 2.1+ and ItsDangerous 2.1+
-# removed.
-jinja2 = "<3.1"
-werkzeug = "<2.1"
-itsdangerous = "<2.1"
-markupsafe = "<2.1"
 # PyYAML 6.0 does not build on 3.12.
 pyyaml = ">=6.0.1"
-# apispec 3.3 (pinned by Flask-AppBuilder 3.4) imports distutils, which 3.12
-# removed; setuptools supplies it. Flask 1.1 also finds `flask fab` (a plugin
-# command) through pkg_resources, which setuptools 81 removed. Drop both with
-# the Flask upgrade.
-setuptools = "<81"
 
 [requires]
 python_version = "3.12"

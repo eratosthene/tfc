@@ -57,20 +57,20 @@ The mounted ``uploads`` folder must therefore be writable by that UID
 ``--require-hashes``. CI's tests and audit export the lock the same way. To
 change a dependency, edit ``Pipfile``, run ``pipenv lock``, and commit both.
 
-Held back on purpose, for the upgrade sub-issues (11 to 13): Flask 1.1,
-Flask-AppBuilder 3.4, Flask-SQLAlchemy 2.5, SQLAlchemy 1.4, Flask-Migrate 3. The
-only bumps made for 3.12 are Pillow 10.4 (the first line with 3.12 wheels),
-PyYAML 6.0.3 (6.0 does not build), greenlet, and ``setuptools`` (Flask-AppBuilder's
-apispec 3.3 imports ``distutils``, removed in 3.12). Pillow 10 dropped
-``Image.ANTIALIAS``, which Flask-AppBuilder 3.4 still uses, so ``app/__init__.py``
-puts it back until Flask-AppBuilder is upgraded.
+Held back on purpose, for the upgrade sub-issues (12 and 13): Flask-SQLAlchemy
+2.5, SQLAlchemy 1.4, Flask-Migrate 3 and Pillow 10. Sub-issue 11 moved Flask to
+2.2.5, Flask-AppBuilder to 4.8.1 (the last 4.x) and Werkzeug to 2.3.8, all pinned
+exactly in ``Pipfile``. Flask 2.2 is the newest Flask that Flask-SQLAlchemy 2.5,
+which FAB 4 requires, runs on (Flask 2.3 removed ``_app_ctx_stack``), and Werkzeug
+2.3 is the first with scrypt, which FAB 4.8 uses for new passwords. Existing
+password hashes still work. The other 3.12 bumps are PyYAML 6.0.3 (6.0 does not
+build) and greenlet.
 
-``pip-audit`` on the lock (6 November 2026) reports 129 known vulnerabilities in
-seven packages: Pillow 10.4.0 (66), Werkzeug 1.0.1 (17), Flask-AppBuilder 3.4.5
-(16), PyJWT 1.7.1 (15), Jinja2 2.11.3 (8), Flask 1.1.4 (4), setuptools 80.10.2 (3). All are accepted for now,
-for one reason: the fixes need a major upgrade (Flask 2 or 3, Flask-AppBuilder
-4 or 5, Pillow 11 or later; setuptools is held below 81 for ``pkg_resources``, which Flask 1.1 needs to find ``flask fab``), which is sub-issues 11 to 13, and the Pillow fix also
-needs Flask-AppBuilder 4. The audit workflow stays report-only until then.
+``pip-audit`` on the lock (7 November 2026) reports 81 known vulnerabilities in
+three packages: Pillow 10.4.0 (66), Werkzeug 2.3.8 (13) and Flask 2.2.5 (2). All
+are accepted for now, because the fixes need a major upgrade (Flask 3, Werkzeug 3,
+Pillow 11 or later), which needs Flask-AppBuilder 5 and so the SQLAlchemy 2 work
+(sub-issues 12 and 13). The audit workflow stays report-only until then.
 
 Database changes
 ~~~~~~~~~~~~~~~~
