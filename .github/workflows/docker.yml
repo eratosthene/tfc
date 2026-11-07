@@ -41,7 +41,7 @@ jobs:
           assert not os.path.exists('/app/config.py'), 'config.py is in the image'"
 
       # Catches OS-package and base-image issues. Report-only for now: the
-      # base image is python:3.12-slim now. Report-only until the scan has been
+      # base image is python:3.12-alpine now. Report-only until the scan has been
       # seen clean in CI; then set exit-code to "1".
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
