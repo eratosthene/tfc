@@ -1,0 +1,47 @@
+# One-time Mongo to MariaDB migration (sub-issue #8). Run from the repo root;
+# the steps are in README.rst, "Migrating the Mongo data". It is separate from
+# compose.yml so the live app has no Mongo in it any more.
+#
+# A throwaway MongoDB holds a *restored copy* of the backup, so the real Mongo
+# is never touched. The migrate service has the app's config.py and docker/.env
+# (for SQLALCHEMY_DATABASE_URI), the uploads folder, and this MongoDB.
+#
+# Paths are relative to this file's folder, docker/.
+name: tfc-migrate
+
+services:
+  mongo:
+    # 4.4 runs on CPUs without AVX, which newer MongoDB images need.
+    image: mongo:4.4
+    volumes:
+      - mongo-data:/data/db
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.migrate
+      args:
+        BASE_IMAGE: ${BASE_IMAGE:-tfc:latest}
+    env_file: .env
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+    depends_on:
+      - mongo
+    entrypoint: ["python", "/scripts/migrate_mongo_to_sql.py"]
+    working_dir: /app
+    volumes:
+      - ../scripts:/scripts:ro
+      - type: bind
+        source: ../config.py
+        target: /app/config.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../uploads
+        target: /app/app/static/uploads
+        bind:
+          create_host_path: false
+
+volumes:
+  mongo-data:
