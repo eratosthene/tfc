@@ -36,7 +36,7 @@ pyyaml = ">=6.0.1"
 # removed; setuptools supplies it. Flask 1.1 also finds `flask fab` (a plugin
 # command) through pkg_resources, which setuptools 81 removed. Drop both with
 # the Flask upgrade.
-setuptools = "<81"
+setuptools = "<85"
 
 [requires]
 python_version = "3.12"
