@@ -1,0 +1,7 @@
+# The app image plus pymongo, for scripts/migrate_mongo_to_sql.py only. Not used
+# by the running app. Build the app image first (docker/live-up.sh); BASE_IMAGE
+# is that image.
+ARG BASE_IMAGE=tfc:latest
+FROM ${BASE_IMAGE}
+
+RUN pip install pymongo==4.6.3

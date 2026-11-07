@@ -74,6 +74,84 @@ as CI does, point ``TEST_DATABASE_URI`` at an empty database whose name ends in
 
 	TEST_DATABASE_URI='mysql+pymysql://tfc:PASSWORD@127.0.0.1:3309/tfc_test?charset=utf8mb4' python -m pytest
 
+Migrating the Mongo data
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+One-time: ``scripts/migrate_mongo_to_sql.py`` copies the old MongoDB data and
+its GridFS images into MariaDB and the ``uploads`` folder (sub-issue #8). It
+only reads Mongo. The MariaDB tables get a ``legacy_id`` column (the Mongo
+ObjectId) from the ``a1c3e5f7b902`` migration; each row is upserted on it, so
+the script can be re-run safely. **Run it before anyone edits data in the new
+app**: a re-run puts the Mongo values back over the rows.
+
+How it maps: lookup tables first, then TFWikiLink, Figure, and the figure
+association rows, with list order kept in ``position``. Each image is written
+byte for byte to ``uploads/`` named ``<uuid>_sep_<name>``, as the app names
+uploads, with its thumbnail made by Flask-AppBuilder's ImageManager (the app's
+code). The original is kept as it was, not shrunk to 2000px. Anything that
+cannot migrate is left out and listed (a figure whose character or faction no
+longer exists, a name too long for its column); list entries that point at a
+deleted document are dropped with a warning.
+
+``docker/compose.migrate.yml`` has a throwaway MongoDB for a *restored copy* of
+the dump, so the real Mongo is never connected to. Steps, from the repo root on
+the server (add ``sudo`` to docker as needed):
+
+1. Back up Mongo, and the new side, first. ``MONGO`` is the running Mongo
+   container's name (``docker ps``)::
+
+	mkdir -p backups
+	docker exec MONGO mongodump --db tfc --archive > backups/mongo-$(date +%Y%m%d-%H%M%S).archive
+	ls -l backups/mongo-*.archive           # not empty? the dump says "done dumping" for each collection
+	scripts/backup.sh                       # the MariaDB database and uploads, as they are now
+
+2. Be on this code, with the tables up to date (``flask db upgrade`` adds
+   ``legacy_id``), and ``uploads/`` present::
+
+	docker/live-up.sh
+	docker compose -f docker/compose.yml exec tfc flask db upgrade
+
+3. Restore the dump into the throwaway Mongo::
+
+	docker compose -f docker/compose.migrate.yml up -d mongo
+	docker compose -f docker/compose.migrate.yml exec -T mongo mongorestore --archive --nsInclude 'tfc.*' < backups/mongo-STAMP.archive
+
+4. Dry run: reads everything, checks each image can be opened, and writes
+   nothing. It prints the Mongo counts and any problems::
+
+	docker compose -f docker/compose.migrate.yml run --rm migrate --dry-run
+
+   If it says no collection was found, the names printed are what is in the
+   dump; adjust ``SPECS`` in the script.
+
+5. The real run. It prints a verification report: counts per collection and
+   per association, every field and list compared, every image compared by
+   length and SHA-256, and ten figures to check by hand::
+
+	docker compose -f docker/compose.migrate.yml run --rm migrate | tee backups/migration-report.txt
+
+   Exit status 0 and "OK: nothing wrong found." mean the counts match and every
+   image matches its source. Anything under "Problems" or "Mismatches" needs a
+   look before going on; fixing it and re-running is safe.
+   ``... run --rm migrate --verify-only`` repeats just the comparison, and
+   ``--sample N --seed S`` picks the figures to spot-check.
+
+6. Open the app and check the ten figures listed (``/figuremodelview/show/<id>``):
+   name, year, faction, character, franchises, tooling, lists in order, and the
+   picture and thumbnail.
+
+7. Done: stop the throwaway Mongo, keeping the dump (``-v`` deletes its data)::
+
+	docker compose -f docker/compose.migrate.yml down -v
+
+The ``mongo`` container on the server and its data stay until the checks above
+pass and the dump is kept somewhere safe; only then remove it. ``compose.yml``
+has no Mongo service now, so there is nothing to remove from it. Once this has
+been run and checked, the script stays in ``scripts/`` as a record (its header
+says so), and ``legacy_id`` can be dropped in a later cleanup once sub-issue 13
+no longer needs it. The tests for the script run against a real MongoDB when
+``TEST_MONGO_URI`` is set, as in CI.
+
 Backup
 ~~~~~~
 

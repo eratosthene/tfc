@@ -31,6 +31,17 @@ def _position_table(name, left, right, left_fk, right_fk):
     )
 
 
+class Legacy:
+    """The MongoDB ObjectId a row was migrated from (scripts/migrate_mongo_to_sql.py).
+
+    It makes re-running the migration an upsert, and lets later work match
+    records to the old data. Rows made in the app leave it empty. Drop it in a
+    cleanup once it is no longer needed.
+    """
+
+    legacy_id = Column(String(24), unique=True)
+
+
 class Named:
     """__str__ and __repr__ as the name, which is what the views show."""
 
@@ -41,7 +52,7 @@ class Named:
         return self.name
 
 
-class Franchise(Named, db.Model):
+class Franchise(Legacy, Named, db.Model):
     __tablename__ = "franchise"
     __table_args__ = TABLE_ARGS
     id = Column(Integer, primary_key=True)
@@ -90,7 +101,7 @@ class Franchise(Named, db.Model):
         )
 
 
-class Faction(Named, db.Model):
+class Faction(Legacy, Named, db.Model):
     __tablename__ = "faction"
     __table_args__ = TABLE_ARGS
     id = Column(Integer, primary_key=True)
@@ -131,7 +142,7 @@ class Faction(Named, db.Model):
         )
 
 
-class Tooling(Named, db.Model):
+class Tooling(Legacy, Named, db.Model):
     __tablename__ = "tooling"
     __table_args__ = TABLE_ARGS
     id = Column(Integer, primary_key=True)
@@ -145,7 +156,7 @@ class Tooling(Named, db.Model):
         )
 
 
-class Accessory(Named, db.Model):
+class Accessory(Legacy, Named, db.Model):
     __tablename__ = "accessory"
     __table_args__ = TABLE_ARGS
     id = Column(Integer, primary_key=True)
@@ -159,7 +170,7 @@ class Accessory(Named, db.Model):
         )
 
 
-class Category(Named, db.Model):
+class Category(Legacy, Named, db.Model):
     __tablename__ = "category"
     __table_args__ = TABLE_ARGS
     id = Column(Integer, primary_key=True)
@@ -173,7 +184,7 @@ class Category(Named, db.Model):
         )
 
 
-class TFWikiLink(db.Model):
+class TFWikiLink(Legacy, db.Model):
     __tablename__ = "tf_wiki_link"
     __table_args__ = TABLE_ARGS
     id = Column(Integer, primary_key=True)
@@ -281,7 +292,7 @@ ORDERED = (
 )
 
 
-class Figure(Named, db.Model):
+class Figure(Legacy, Named, db.Model):
     __tablename__ = "figure"
     __table_args__ = TABLE_ARGS
     id = Column(Integer, primary_key=True)
