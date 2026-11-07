@@ -26,7 +26,7 @@ python-dotenv = "*"
 pillow = ">=10.1,<11"
 # Flask 1.1 imports things that Jinja2 3.1, Werkzeug 2.1+ and ItsDangerous 2.1+
 # removed.
-jinja2 = "<3.1"
+jinja2 = "<3.2"
 werkzeug = "<2.1"
 itsdangerous = "<2.1"
 markupsafe = "<2.1"
