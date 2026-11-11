@@ -201,7 +201,7 @@ def clean(value):
     value = re.sub(r"\[\[(?:[^\]|]*\|)?([^\]]*)\]\]", r"\1", value)
     value = re.sub(r"'{2,}", "", value)
     value = re.sub(r"<[^>]+>", "", value)
-    return re.sub(r"[ \t]+", " ", value).strip()
+    return re.sub(r" *\n *", "\n", re.sub(r"[ \t]+", " ", value)).strip()
 
 
 def _items(value):

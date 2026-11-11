@@ -240,26 +240,42 @@ docker/compose.dev.yml`` as needed)::
 Importing from tfwiki.net (sub-issue 14)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``flask import-tfwiki "Optimus_Prime_(G1)"`` (or ``Page#Section`` for one
-figure) reads a page through tfwiki.net's MediaWiki API (``action=parse``),
-maps each figure infobox to a ``Figure`` (name, release year, franchise,
-faction, tooling, accessories as names, categories, exclusive to, Hasbro and
-Takara ids) and shows each one as a diff. It saves only what you confirm
-(``--dry-run`` saves nothing, ``--yes`` confirms all). It adds
-``TFWikiLink`` rows in the app's URL format (``.../wiki/Page`` for the
-character, ``.../wiki/Page#Section`` for the figure) and reuses existing
-factions, tooling, accessories, categories and links by name. It never edits a
-record: a figure already linked to the same ``Page#Section``, or with the same
-name and year, is skipped, so a re-run changes nothing. A franchise that is not
-in the app yet is reported, not created (it needs a start year). Images are
-left to the existing upload.
+``flask import-tfwiki "Bumblebee_(G1)/toys"`` (or ``.../toys#Go-Bot`` for one
+figure) reads a character's toys page through tfwiki.net's MediaWiki API
+(``action=parse``; the site runs MediaWiki 1.19) and shows each figure as a
+diff. It saves only what you confirm (``--dry-run`` saves nothing, ``--yes``
+confirms all). tfwiki has no infobox: each figure is a line like
+``{{Bp-a1|'''Bumblebee''' (Mini Vehicle, 1984)}}`` under a toyline heading, with
+``:*''Accessories'': ...`` and ``:*''Takara ID number'': ...`` bullets. From it
+the importer takes the name, release year, category (the class), faction (only
+when the ``Bp-`` template names one side: ``a`` Autobot, ``d`` Decepticon),
+franchise (the toyline heading, or ``--franchise``), accessories as names, and
+the Takara and Hasbro ids. ``--faction`` fills a faction the page does not give.
+Tooling, "packed with", ancestors and images are left to you.
 
-It honors tfwiki.net's ``robots.txt``: it fetches it first, and refuses to
-fetch a page the file disallows. At the time of writing the file is
-``User-agent: *`` / ``Disallow: /``, so **live imports are refused** until the
-site's owners allow it; there is deliberately no override. Requests are at
-least one second apart, and raw responses are cached in ``tfwiki-cache/``
-(git-ignored; ``TFWIKI_CACHE_DIR`` changes it, ``--refresh`` refetches).
-The tests use synthetic fixtures in ``tests/fixtures/tfwiki`` and make no
-network calls. The infobox parameter names the mapper accepts
-(``app/tfwiki.py``, ``ALIASES``) are guesses until checked against real pages.
+``TFWikiLink`` rows are made in the app's URL format: ``.../wiki/Bumblebee_(G1)``
+for the character and ``.../wiki/Bumblebee_(G1)/toys#Go-Bot`` for the figure
+(the ``{{anchor}}`` before the line, else the toyline heading). Existing
+factions, accessories, categories and links are reused by name. Nothing is ever
+edited: a figure already linked to the same ``Page#Section``, or with the same
+name and year, is skipped, so a re-run changes nothing. A franchise that is not
+in the app is reported, not created (it needs a start year); the toyline
+heading ("The Transformers") often differs from your names, so use
+``--franchise``.
+
+**robots.txt.** tfwiki.net's ``robots.txt`` is ``User-agent: *`` /
+``Disallow: /``, which disallows this client. The importer honors it by
+default and refuses to fetch. The owner of this collection has decided that
+low-rate fetching of single pages for personal use is acceptable, so they can
+opt in with ``--ignore-robots`` or ``TFWIKI_IGNORE_ROBOTS = True`` in
+``config.py``; it prints a notice each time. Requests identify as
+``tfc-importer/1.0 (+https://github.com/eratosthene/tfc)``, are made one at a
+time at least two seconds apart (enforced in ``app/tfwiki.py``, not by the
+caller), and stop for good on an HTTP 429 or 503. Each page is cached by title
+in ``tfwiki-cache/`` (git-ignored; ``TFWIKI_CACHE_DIR`` changes it), so a
+figure and its sibling figures share one request, and a cached page is never
+refetched unless you pass ``--refresh``. An import is one request (plus
+``robots.txt`` once a day); nothing crawls linked pages.
+
+The tests use an excerpt of a real response (``tests/fixtures/tfwiki``) and make
+no network calls.
