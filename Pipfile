@@ -17,11 +17,13 @@ pre-commit = "*"
 flask = "==2.2.5"
 flask-appbuilder = "==4.8.1"
 werkzeug = "==2.3.8"
-# The remaining majors are held for sub-issues 12 and 13.
-flask-migrate = "<4"
+# Sub-issue 12: FAB 4.8.1 requires SQLAlchemy <1.5 and Flask-SQLAlchemy <3, so
+# SQLAlchemy 2 and Flask-SQLAlchemy 3 wait for Flask-AppBuilder 5 (see #12).
+# Flask-Migrate 4 works with Flask-SQLAlchemy 2.5.
+flask-migrate = ">=4,<5"
 flask-restful = "*"
 flask-sqlalchemy = "<3"
-sqlalchemy = "<2"
+sqlalchemy = "<1.5"
 # SQLAlchemy 1.4 needs it only on some platforms, so a lock made on a Mac omits it.
 greenlet = "*"
 pymysql = "*"

@@ -58,7 +58,10 @@ The mounted ``uploads`` folder must therefore be writable by that UID
 change a dependency, edit ``Pipfile``, run ``pipenv lock``, and commit both.
 
 Held back on purpose, for the upgrade sub-issues (12 and 13): Flask-SQLAlchemy
-2.5, SQLAlchemy 1.4, Flask-Migrate 3 and Pillow 10. Sub-issue 11 moved Flask to
+2.5, SQLAlchemy 1.4 and Pillow 10. Flask-AppBuilder 4.8.1 requires SQLAlchemy
+<1.5 and Flask-SQLAlchemy <3, so SQLAlchemy 2 and Flask-SQLAlchemy 3 need
+Flask-AppBuilder 5 (sub-issue 12 moved Flask-Migrate to 4.1, which works with
+Flask-SQLAlchemy 2.5, and SQLAlchemy to its last 1.4, 1.4.54). Sub-issue 11 moved Flask to
 2.2.5, Flask-AppBuilder to 4.8.1 (the last 4.x) and Werkzeug to 2.3.8, all pinned
 exactly in ``Pipfile``. Flask 2.2 is the newest Flask that Flask-SQLAlchemy 2.5,
 which FAB 4 requires, runs on (Flask 2.3 removed ``_app_ctx_stack``), and Werkzeug
