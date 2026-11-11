@@ -32,9 +32,11 @@ First-time setup, from the repo root::
 	sudo chown 1000 uploads                 # the container runs as UID 1000, not root
 	cp docker/.env.example docker/.env      # set SQLALCHEMY_DATABASE_URI
 	docker/live-up.sh                       # build and start, on port 9999
-	sudo docker compose -f docker/compose.yml exec tfc flask db upgrade
 	sudo docker compose -f docker/compose.yml exec tfc flask fab create-admin
 
+The container runs ``flask db upgrade`` before gunicorn starts (``docker/docker-entrypoint.sh``),
+so the tables are made and kept up to date on every start, and Flask-AppBuilder's
+first-boot permissions are made by one process, not raced by two workers.
 ``config.py`` is mounted read-only. ``docker/.env`` is passed to the app as
 environment (single-quote the value). ``docker/live-logs.sh`` follows
 the logs, ``docker/live-down.sh`` stops the app, and ``docker/live-up.sh -n``
@@ -96,7 +98,6 @@ its user, password and database come from ``SQLALCHEMY_DATABASE_URI`` in
 ``docker/.env`` (host ``db``; avoid ``@ : / % # ?`` in the password)::
 
 	docker compose -f docker/compose.dev.yml --profile db up --build
-	docker compose -f docker/compose.dev.yml exec tfc flask db upgrade
 	docker compose -f docker/compose.dev.yml exec tfc flask fab create-admin
 
 Tests
@@ -143,11 +144,10 @@ the server (add ``sudo`` to docker as needed):
 	ls -l backups/mongo-*.archive           # not empty? the dump says "done dumping" for each collection
 	scripts/backup.sh                       # the MariaDB database and uploads, as they are now
 
-2. Be on this code, with the tables up to date (``flask db upgrade`` adds
-   ``legacy_id``), and ``uploads/`` present::
+2. Be on this code, with the tables up to date (starting the container runs ``flask db upgrade``,
+   which adds ``legacy_id``), and ``uploads/`` present::
 
 	docker/live-up.sh
-	docker compose -f docker/compose.yml exec tfc flask db upgrade
 
 3. Restore the dump into the throwaway Mongo::
 

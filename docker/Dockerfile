@@ -29,6 +29,7 @@ EXPOSE 9999
 WORKDIR /app
 COPY ./app /app/app
 COPY ./migrations /app/migrations
+COPY --chmod=755 ./docker/docker-entrypoint.sh /app/docker-entrypoint.sh
 
 # gunicorn runs as this user. The mounted uploads folder must be writable by
 # it (chown it to APP_UID on the host) and config.py readable by it.
@@ -42,4 +43,8 @@ USER app
 # image. Mount it read-only at /app/config.py (Compose does this).
 # Flask serves its own static files and the uploads (app/__init__.py); there is
 # no nginx in front.
-CMD ["gunicorn", "--bind", "0.0.0.0:9999", "--workers", "2", "--access-logfile", "-", "app:app"]
+# One run of `flask db upgrade` before gunicorn starts its workers (see the script).
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+# --no-control-socket: gunicorn 27 otherwise tries to make a socket under the
+# app user's home, which does not exist (adduser -H), and logs an error.
+CMD ["gunicorn", "--no-control-socket", "--bind", "0.0.0.0:9999", "--workers", "2", "--access-logfile", "-", "app:app"]
