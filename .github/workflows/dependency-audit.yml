@@ -39,14 +39,7 @@ jobs:
       # Every version is pinned in the export, so audit it as-is instead of
       # resolving (and installing) it again. The results also go in the job
       # summary.
-      #
-      # continue-on-error: the lock still has Flask 2.2, Werkzeug 2.3 and
-      # Pillow 10.4 (about 81 known vulnerabilities, see "Dependencies" in the
-      # README), so this step fails today. It is report-only until the upgrades
-      # (sub-issues 12 and 13) land; then delete the line so a finding fails the
-      # job.
       - uses: pypa/gh-action-pip-audit@v1.1.0
-        continue-on-error: true
         with:
           inputs: locked-requirements.txt
           no-deps: true

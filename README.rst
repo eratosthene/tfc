@@ -59,21 +59,34 @@ The mounted ``uploads`` folder must therefore be writable by that UID
 ``--require-hashes``. CI's tests and audit export the lock the same way. To
 change a dependency, edit ``Pipfile``, run ``pipenv lock``, and commit both.
 
-Held back on purpose, for sub-issue 13: Pillow 10, Flask 2.2 and Werkzeug 2.3
-(Flask 3 and Werkzeug 3 are planned there). Sub-issue 12 moved Flask-AppBuilder to
-5.3.0, SQLAlchemy to 2 (2.0.x), Flask-SQLAlchemy to 3 and Flask-Migrate to 4.1.
-FAB 5 imports ``blinker``, which Flask 2.2 does not pull in, so it is in the
-Pipfile until Flask 3. Sub-issue 11 moved Flask to 2.2.5 and Werkzeug to 2.3.8, pinned exactly in
-``Pipfile``: Flask 2.2.5 is the newest Flask that Flask-SQLAlchemy 2.5 (which FAB 4
-required) ran on, and Werkzeug 2.3 is the first with scrypt, which FAB uses for new
-passwords. Existing password hashes still work. The other 3.12 bumps are PyYAML 6.0.3 (6.0 does not
-build) and greenlet.
+Current versions (sub-issue 13): Flask 3.1, Werkzeug 3.1, Flask-AppBuilder 5.3,
+SQLAlchemy 2, Flask-SQLAlchemy 3, Flask-Migrate 4.1 and Pillow 13. Only the
+packages the app imports are in ``Pipfile`` (Flask, Werkzeug, Flask-AppBuilder,
+Flask-Migrate, Flask-SQLAlchemy, SQLAlchemy, greenlet, PyMySQL, gunicorn,
+python-dotenv, Pillow and PyYAML); Flask-Login, Flask-WTF, Flask-Babel, PyJWT,
+marshmallow, blinker and the rest come from Flask-AppBuilder and Flask, so
+``pipenv lock`` keeps them current. ``flask-restful`` was removed (nothing
+imports it). ``prison``, ``sqlalchemy-utils``, ``flask-jwt-extended`` and
+``marshmallow-enum`` are not direct dependencies; FAB 5.3 requires the first
+three, and the last is no longer in the lock. ``flask-openid`` and
+``python3-openid`` are gone with FAB 3, and the repo has no ``freeze.py``.
 
-``pip-audit`` on the lock (7 November 2026) reports 81 known vulnerabilities in
-three packages: Pillow 10.4.0 (66), Werkzeug 2.3.8 (13) and Flask 2.2.5 (2). All
-are accepted for now, because the fixes need a major upgrade (Flask 3, Werkzeug 3,
-Pillow 11 or later), which needs Flask-AppBuilder 5 and so the SQLAlchemy 2 work
-(sub-issues 12 and 13). The audit workflow stays report-only until then.
+Translations: ``app/translations`` was deleted in sub-issue 1 and the app has no
+``babel.cfg`` or Babel code, so there are none. Flask-Babel is present only as a
+FAB dependency, with FAB's own built-in strings.
+
+``pip-audit`` on the lock (11 November 2026) reports no known vulnerabilities, and
+the audit workflow now fails on a finding. ``pip list --outdated`` shows only
+``python-dateutil`` (4.0.0 available; FAB allows only 2.x, so it follows FAB).
+
+To run it locally with the dev Compose file, create ``config.py`` and
+``docker/.env`` as above, then::
+
+	docker compose -f docker/compose.dev.yml --profile db up --build
+	docker compose -f docker/compose.dev.yml exec tfc flask fab create-admin
+
+and open http://127.0.0.1:5561. Tests: ``pipenv install --dev``, then
+``pipenv run pytest --cov=app --cov-fail-under=100``.
 
 Database changes
 ~~~~~~~~~~~~~~~~
