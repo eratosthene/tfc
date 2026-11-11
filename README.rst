@@ -32,9 +32,11 @@ First-time setup, from the repo root::
 	sudo chown 1000 uploads                 # the container runs as UID 1000, not root
 	cp docker/.env.example docker/.env      # set SQLALCHEMY_DATABASE_URI
 	docker/live-up.sh                       # build and start, on port 9999
-	sudo docker compose -f docker/compose.yml exec tfc flask db upgrade
 	sudo docker compose -f docker/compose.yml exec tfc flask fab create-admin
 
+The container runs ``flask db upgrade`` before gunicorn starts (``docker/docker-entrypoint.sh``),
+so the tables are made and kept up to date on every start, and Flask-AppBuilder's
+first-boot permissions are made by one process, not raced by two workers.
 ``config.py`` is mounted read-only. ``docker/.env`` is passed to the app as
 environment (single-quote the value). ``docker/live-logs.sh`` follows
 the logs, ``docker/live-down.sh`` stops the app, and ``docker/live-up.sh -n``
@@ -57,16 +59,14 @@ The mounted ``uploads`` folder must therefore be writable by that UID
 ``--require-hashes``. CI's tests and audit export the lock the same way. To
 change a dependency, edit ``Pipfile``, run ``pipenv lock``, and commit both.
 
-Held back on purpose, for the upgrade sub-issues (12 and 13): Flask-SQLAlchemy
-2.5, SQLAlchemy 1.4 and Pillow 10. Flask-AppBuilder 4.8.1 requires SQLAlchemy
-<1.5 and Flask-SQLAlchemy <3, so SQLAlchemy 2 and Flask-SQLAlchemy 3 need
-Flask-AppBuilder 5 (sub-issue 12 moved Flask-Migrate to 4.1, which works with
-Flask-SQLAlchemy 2.5, and SQLAlchemy to its last 1.4, 1.4.54). Sub-issue 11 moved Flask to
-2.2.5, Flask-AppBuilder to 4.8.1 (the last 4.x) and Werkzeug to 2.3.8, all pinned
-exactly in ``Pipfile``. Flask 2.2 is the newest Flask that Flask-SQLAlchemy 2.5,
-which FAB 4 requires, runs on (Flask 2.3 removed ``_app_ctx_stack``), and Werkzeug
-2.3 is the first with scrypt, which FAB 4.8 uses for new passwords. Existing
-password hashes still work. The other 3.12 bumps are PyYAML 6.0.3 (6.0 does not
+Held back on purpose, for sub-issue 13: Pillow 10, Flask 2.2 and Werkzeug 2.3
+(Flask 3 and Werkzeug 3 are planned there). Sub-issue 12 moved Flask-AppBuilder to
+5.3.0, SQLAlchemy to 2 (2.0.x), Flask-SQLAlchemy to 3 and Flask-Migrate to 4.1.
+FAB 5 imports ``blinker``, which Flask 2.2 does not pull in, so it is in the
+Pipfile until Flask 3. Sub-issue 11 moved Flask to 2.2.5 and Werkzeug to 2.3.8, pinned exactly in
+``Pipfile``: Flask 2.2.5 is the newest Flask that Flask-SQLAlchemy 2.5 (which FAB 4
+required) ran on, and Werkzeug 2.3 is the first with scrypt, which FAB uses for new
+passwords. Existing password hashes still work. The other 3.12 bumps are PyYAML 6.0.3 (6.0 does not
 build) and greenlet.
 
 ``pip-audit`` on the lock (7 November 2026) reports 81 known vulnerabilities in
@@ -98,7 +98,6 @@ its user, password and database come from ``SQLALCHEMY_DATABASE_URI`` in
 ``docker/.env`` (host ``db``; avoid ``@ : / % # ?`` in the password)::
 
 	docker compose -f docker/compose.dev.yml --profile db up --build
-	docker compose -f docker/compose.dev.yml exec tfc flask db upgrade
 	docker compose -f docker/compose.dev.yml exec tfc flask fab create-admin
 
 Tests
@@ -145,11 +144,10 @@ the server (add ``sudo`` to docker as needed):
 	ls -l backups/mongo-*.archive           # not empty? the dump says "done dumping" for each collection
 	scripts/backup.sh                       # the MariaDB database and uploads, as they are now
 
-2. Be on this code, with the tables up to date (``flask db upgrade`` adds
-   ``legacy_id``), and ``uploads/`` present::
+2. Be on this code, with the tables up to date (starting the container runs ``flask db upgrade``,
+   which adds ``legacy_id``), and ``uploads/`` present::
 
 	docker/live-up.sh
-	docker compose -f docker/compose.yml exec tfc flask db upgrade
 
 3. Restore the dump into the throwaway Mongo::
 

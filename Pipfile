@@ -9,22 +9,21 @@ pytest-cov = "*"
 pre-commit = "*"
 
 [packages]
-# Step 1 of the dependency upgrades (sub-issue 11). FAB 4.8.1 is the last 4.x;
-# it needs Flask <3. Flask 2.2.5 is the newest Flask that Flask-SQLAlchemy 2.5
-# (held by FAB 4.x, <3) still works with: Flask 2.3 removed _app_ctx_stack.
-# Werkzeug 2.3 is the newest Flask 2.2.5 supports (2.2.5 was released for
-# it) and the first with scrypt, which FAB 4.8 uses to hash new passwords.
+# Sub-issue 11 moved to Flask 2.2.5 and Werkzeug 2.3.8 (the first with scrypt,
+# which FAB hashes new passwords with). Flask 3 / Werkzeug 3 wait for sub-issue 13.
 flask = "==2.2.5"
-flask-appbuilder = "==4.8.1"
+flask-appbuilder = "==5.3.0"
 werkzeug = "==2.3.8"
-# Sub-issue 12: FAB 4.8.1 requires SQLAlchemy <1.5 and Flask-SQLAlchemy <3, so
-# SQLAlchemy 2 and Flask-SQLAlchemy 3 wait for Flask-AppBuilder 5 (see #12).
-# Flask-Migrate 4 works with Flask-SQLAlchemy 2.5.
+# FAB 5 imports blinker without declaring it; Flask 2.2 does not pull it in
+# (Flask 2.3+ does), so it is listed here until Flask 3 (sub-issue 13).
+blinker = "*"
+# Sub-issue 12: FAB 5 is the first release that allows SQLAlchemy 2 and
+# Flask-SQLAlchemy 3 (FAB 4.8.1 needed <1.5 and <3).
 flask-migrate = ">=4,<5"
 flask-restful = "*"
-flask-sqlalchemy = "<3"
-sqlalchemy = "<1.5"
-# SQLAlchemy 1.4 needs it only on some platforms, so a lock made on a Mac omits it.
+flask-sqlalchemy = ">=3,<4"
+sqlalchemy = ">=2,<3"
+# SQLAlchemy needs it only on some platforms, so a lock made on a Mac omits it.
 greenlet = "*"
 pymysql = "*"
 gunicorn = "*"

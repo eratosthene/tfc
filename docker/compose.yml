@@ -10,8 +10,8 @@
 # There is no database service: the app uses the MariaDB server's database,
 # reached through SQLALCHEMY_DATABASE_URI (docker/.env, or config.py). Create
 # its tables on a new database, and after each update that has a new migration:
-#
-#   docker compose -f docker/compose.yml exec tfc flask db upgrade
+# the container's entrypoint runs `flask db upgrade` on every start. The first
+# user: docker compose -f docker/compose.yml exec tfc flask fab create-admin
 #
 # Paths here are relative to this file's folder, docker/.
 name: tfc

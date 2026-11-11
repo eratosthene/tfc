@@ -68,14 +68,17 @@ def _png():
 def reader_user():
     """A user whose role can list and show, but not add, edit or delete."""
     sm = appbuilder.sm
-    role = sm.find_role("Reader") or sm.add_role("Reader")
-    for view in sm.get_session.query(sm.viewmenu_model).all():
-        for perm in ("can_list", "can_show"):
-            pv = sm.find_permission_view_menu(perm, view.name)
-            if pv and pv not in role.permissions:
-                sm.add_permission_role(role, pv)
-    if not sm.find_user(username=READER):
-        sm.add_user(READER, "Read", "Only", "reader@example.com", role, READER_PASSWORD)
+    with flask_app.app_context():
+        role = sm.find_role("Reader") or sm.add_role("Reader")
+        for view in sm.session.query(sm.viewmenu_model).all():
+            for perm in ("can_list", "can_show"):
+                pv = sm.find_permission_view_menu(perm, view.name)
+                if pv and pv not in role.permissions:
+                    sm.add_permission_role(role, pv)
+        if not sm.find_user(username=READER):
+            sm.add_user(
+                READER, "Read", "Only", "reader@example.com", role, READER_PASSWORD
+            )
     return READER
 
 
@@ -87,7 +90,7 @@ def reader_client(client, reader_user):
 
 @pytest.mark.parametrize("view,model,key,form", CASES, ids=IDS)
 def test_list_show_contain_seed_data(auth_client, seed, view, model, key, form):
-    obj = db.session.query(model).get(seed[key].id)
+    obj = db.session.get(model, seed[key].id)
     name = obj.name
     listing = auth_client.get("/%s/list/" % view)
     assert listing.status_code == 200 and name in listing.get_data(as_text=True)
@@ -114,12 +117,12 @@ def test_add_edit_delete(auth_client, seed, view, model, key, form):
     )
     assert resp.status_code == 200
     db.session.expire_all()
-    assert db.session.query(model).get(pk).name == "Renamed"
+    assert db.session.get(model, pk).name == "Renamed"
 
     resp = auth_client.get("/%s/delete/%s" % (view, pk), follow_redirects=True)
     assert resp.status_code == 200
     db.session.expire_all()
-    assert db.session.query(model).get(pk) is None
+    assert db.session.get(model, pk) is None
     assert db.session.query(model).count() == before
 
 
@@ -167,12 +170,13 @@ def test_read_only_role_can_view_but_not_change(
         resp = getattr(reader_client, method)(
             path, data=form(seed) if method == "post" else None
         )
-        # FAB 3.4 redirects a user who is not allowed, as it does an anonymous
-        # one; the page itself is never shown.
-        assert resp.status_code == 302, path
+        # FAB 5.2.2+ answers a logged-in user who is not allowed with 403
+        # (earlier ones redirected, as for an anonymous user); the page itself
+        # is never shown.
+        assert resp.status_code == 403, path
     db.session.expire_all()
     assert db.session.query(model).count() == before
-    assert db.session.query(model).get(pk) is not None
+    assert db.session.get(model, pk) is not None
 
 
 def test_figure_list_shows_relations(auth_client, seed):
@@ -191,7 +195,7 @@ def test_figure_show_renders_helpers(auth_client, seed):
 
 
 def test_figure_with_no_optional_fields_shows(auth_client, seed):
-    fig = db.session.query(Figure).get(seed["figure"].id)
+    fig = db.session.get(Figure, seed["figure"].id)
     other = Figure(
         name="Bare", release_year=2000, character=fig.character, faction=fig.faction
     )
@@ -229,7 +233,7 @@ def _faction_with_image(auth_client, name="Maximal"):
 )
 def test_image_routes_serve_and_404(auth_client, seed, view, model, field, extra):
     if extra is None:  # figure: needs its required fields, so attach to the seed
-        fig = db.session.query(Figure).get(seed["figure"].id)
+        fig = db.session.get(Figure, seed["figure"].id)
         folder = flask_app.config["IMG_UPLOAD_FOLDER"]
         Image.new("RGB", (50, 50), "blue").save(os.path.join(folder, "fig.png"))
         fig.image = "fig.png"
