@@ -47,12 +47,21 @@ def _db_guard():
 @pytest.fixture(scope="session", autouse=True)
 def _schema(_db_guard):
     """Create our tables. (FAB makes its own ab_* tables when the app starts.)"""
-    db.create_all()
+    with flask_app.app_context():
+        db.create_all()
     yield
 
 
 @pytest.fixture(autouse=True)
-def _clean_models(_schema):
+def _app_context():
+    """Flask-SQLAlchemy 3 needs an application context for every session use,
+    and scopes its session to it, so each test gets a fresh one."""
+    with flask_app.app_context():
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _clean_models(_schema, _app_context):
     # Empty our tables, not FAB's ab_* ones (the test user lives there).
     db.session.rollback()
     for t in reversed(db.metadata.sorted_tables):
@@ -66,15 +75,16 @@ def _clean_models(_schema):
 @pytest.fixture(scope="session")
 def admin_user():
     sm = appbuilder.sm
-    if not sm.find_user(username=TEST_USER):
-        sm.add_user(
-            TEST_USER,
-            "Test",
-            "User",
-            "tester@example.com",
-            sm.find_role(sm.auth_role_admin),
-            TEST_PASSWORD,
-        )
+    with flask_app.app_context():
+        if not sm.find_user(username=TEST_USER):
+            sm.add_user(
+                TEST_USER,
+                "Test",
+                "User",
+                "tester@example.com",
+                sm.find_role(sm.auth_role_admin),
+                TEST_PASSWORD,
+            )
     return TEST_USER
 
 

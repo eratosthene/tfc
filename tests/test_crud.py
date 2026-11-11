@@ -18,11 +18,11 @@ def test_list_order_is_kept(seed):
     a = Franchise(name="A", start_year=1990)
     b = Franchise(name="B", start_year=1991)
     c = Franchise(name="C", start_year=1992)
-    fig = db.session.query(Figure).get(seed["figure"].id)
+    fig = db.session.get(Figure, seed["figure"].id)
     fig.franchise = [c, a, b]
     db.session.commit()
     db.session.expire_all()
-    assert [f.name for f in db.session.query(Figure).get(fig.id).franchise] == [
+    assert [f.name for f in db.session.get(Figure, fig.id).franchise] == [
         "C",
         "A",
         "B",
@@ -30,7 +30,7 @@ def test_list_order_is_kept(seed):
     fig.franchise = [b, c]
     db.session.commit()
     db.session.expire_all()
-    assert [f.name for f in db.session.query(Figure).get(fig.id).franchise] == [
+    assert [f.name for f in db.session.get(Figure, fig.id).franchise] == [
         "B",
         "C",
     ]
@@ -50,7 +50,7 @@ def test_gestalt_of_and_packed_with(seed):
     db.session.add(other)
     db.session.commit()
     db.session.expire_all()
-    other = db.session.query(Figure).get(other.id)
+    other = db.session.get(Figure, other.id)
     assert [f.name for f in other.gestalt_of] == ["Optimus Prime"]
     assert [str(x) for x in other.packed_with][0].endswith("[figure]")
 
@@ -127,7 +127,7 @@ def test_add_edit_delete_figure(auth_client, seed):
     )
     assert resp.status_code == 200
     db.session.expire_all()
-    assert db.session.query(Figure).get(fig_id).name == "Megatron 2"
+    assert db.session.get(Figure, fig_id).name == "Megatron 2"
     assert auth_client.get("/figuremodelview/show/%s" % fig_id).status_code == 200
 
     auth_client.get("/figuremodelview/delete/%s" % fig_id, follow_redirects=True)

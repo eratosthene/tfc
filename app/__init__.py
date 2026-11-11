@@ -2,11 +2,9 @@ import logging
 
 from flask import Flask, abort, send_from_directory
 from flask_appbuilder import AppBuilder
-from flask_appbuilder.models.sqla import CustomSignallingSession
 from flask_appbuilder.security.sqla.manager import SecurityManager
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import orm
 
 """
  Logging configuration
@@ -48,21 +46,16 @@ def uploaded_file(filename):
 
 # Our models use db.Model, with its own metadata; FAB creates its security
 # tables (ab_*) itself on startup, and Flask-Migrate only handles ours (see
-# migrations/env.py). FAB 3.4's session class is needed for SQLAlchemy 1.4 with
-# Flask-SQLAlchemy 2.5; the stock one fails in FAB's security setup
-# ("get_bind() got an unexpected keyword argument 'bind'").
-class TfcSQLAlchemy(SQLAlchemy):
-    def create_session(self, options):
-        return orm.sessionmaker(class_=CustomSignallingSession, db=self, **options)
-
-
-db = TfcSQLAlchemy(app)
+# migrations/env.py).
+db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
 from app.index import MyIndexView  # noqa: E402 (needs db, which index imports)
 
-appbuilder = AppBuilder(
-    app, db.session, security_manager_class=SecurityManager, indexview=MyIndexView
-)
+# FAB 5 needs an application context while it sets up and registers views.
+with app.app_context():
+    appbuilder = AppBuilder(
+        app, db.session, security_manager_class=SecurityManager, indexview=MyIndexView
+    )
 
-from app import views  # noqa: E402, F401 (registers views after appbuilder setup)
+    from app import views  # noqa: E402, F401 (registers views after appbuilder setup)

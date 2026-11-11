@@ -570,7 +570,7 @@ def verify(data, folder, run):
         )
         sql_n = session.execute(
             table.select()
-            .with_only_columns([db.func.count()])
+            .with_only_columns(db.func.count())
             .select_from(table.join(Figure.__table__, table.c.figure_id == Figure.id))
             .where(Figure.legacy_id.isnot(None))
         ).scalar()

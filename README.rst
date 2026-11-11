@@ -57,16 +57,14 @@ The mounted ``uploads`` folder must therefore be writable by that UID
 ``--require-hashes``. CI's tests and audit export the lock the same way. To
 change a dependency, edit ``Pipfile``, run ``pipenv lock``, and commit both.
 
-Held back on purpose, for the upgrade sub-issues (12 and 13): Flask-SQLAlchemy
-2.5, SQLAlchemy 1.4 and Pillow 10. Flask-AppBuilder 4.8.1 requires SQLAlchemy
-<1.5 and Flask-SQLAlchemy <3, so SQLAlchemy 2 and Flask-SQLAlchemy 3 need
-Flask-AppBuilder 5 (sub-issue 12 moved Flask-Migrate to 4.1, which works with
-Flask-SQLAlchemy 2.5, and SQLAlchemy to its last 1.4, 1.4.54). Sub-issue 11 moved Flask to
-2.2.5, Flask-AppBuilder to 4.8.1 (the last 4.x) and Werkzeug to 2.3.8, all pinned
-exactly in ``Pipfile``. Flask 2.2 is the newest Flask that Flask-SQLAlchemy 2.5,
-which FAB 4 requires, runs on (Flask 2.3 removed ``_app_ctx_stack``), and Werkzeug
-2.3 is the first with scrypt, which FAB 4.8 uses for new passwords. Existing
-password hashes still work. The other 3.12 bumps are PyYAML 6.0.3 (6.0 does not
+Held back on purpose, for sub-issue 13: Pillow 10, Flask 2.2 and Werkzeug 2.3
+(Flask 3 and Werkzeug 3 are planned there). Sub-issue 12 moved Flask-AppBuilder to
+5.3.0, SQLAlchemy to 2 (2.0.x), Flask-SQLAlchemy to 3 and Flask-Migrate to 4.1.
+FAB 5 imports ``blinker``, which Flask 2.2 does not pull in, so it is in the
+Pipfile until Flask 3. Sub-issue 11 moved Flask to 2.2.5 and Werkzeug to 2.3.8, pinned exactly in
+``Pipfile``: Flask 2.2.5 is the newest Flask that Flask-SQLAlchemy 2.5 (which FAB 4
+required) ran on, and Werkzeug 2.3 is the first with scrypt, which FAB uses for new
+passwords. Existing password hashes still work. The other 3.12 bumps are PyYAML 6.0.3 (6.0 does not
 build) and greenlet.
 
 ``pip-audit`` on the lock (7 November 2026) reports 81 known vulnerabilities in
