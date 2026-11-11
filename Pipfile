@@ -29,7 +29,7 @@ pymysql = "*"
 gunicorn = "*"
 python-dotenv = "*"
 # 10.1 is the first Pillow with Python 3.12 wheels.
-pillow = ">=10.1,<11"
+pillow = ">=13.0.0,<14"
 # PyYAML 6.0 does not build on 3.12.
 pyyaml = ">=6.0.1"
 
