@@ -25,3 +25,6 @@ app/static/uploads/
 docker/.env
 backups/
 .coverage
+
+# Imported from tfwiki.net by `flask import-tfwiki`: raw API responses.
+/tfwiki-cache/

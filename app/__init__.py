@@ -59,3 +59,5 @@ with app.app_context():
     )
 
     from app import views  # noqa: E402, F401 (registers views after appbuilder setup)
+
+from app import cli  # noqa: E402, F401 (registers the flask import-tfwiki command)

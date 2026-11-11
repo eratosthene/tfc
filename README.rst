@@ -236,3 +236,30 @@ docker/compose.dev.yml`` as needed)::
 
 	docker compose -f docker/compose.yml exec -T tfc sh -c 'rm -rf /app/app/static/uploads/*'
 	docker compose -f docker/compose.yml exec -T tfc tar xzf - -C /app/app/static < backups/tfc-uploads-$STAMP.tar.gz
+
+Importing from tfwiki.net (sub-issue 14)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``flask import-tfwiki "Optimus_Prime_(G1)"`` (or ``Page#Section`` for one
+figure) reads a page through tfwiki.net's MediaWiki API (``action=parse``),
+maps each figure infobox to a ``Figure`` (name, release year, franchise,
+faction, tooling, accessories as names, categories, exclusive to, Hasbro and
+Takara ids) and shows each one as a diff. It saves only what you confirm
+(``--dry-run`` saves nothing, ``--yes`` confirms all). It adds
+``TFWikiLink`` rows in the app's URL format (``.../wiki/Page`` for the
+character, ``.../wiki/Page#Section`` for the figure) and reuses existing
+factions, tooling, accessories, categories and links by name. It never edits a
+record: a figure already linked to the same ``Page#Section``, or with the same
+name and year, is skipped, so a re-run changes nothing. A franchise that is not
+in the app yet is reported, not created (it needs a start year). Images are
+left to the existing upload.
+
+It honors tfwiki.net's ``robots.txt``: it fetches it first, and refuses to
+fetch a page the file disallows. At the time of writing the file is
+``User-agent: *`` / ``Disallow: /``, so **live imports are refused** until the
+site's owners allow it; there is deliberately no override. Requests are at
+least one second apart, and raw responses are cached in ``tfwiki-cache/``
+(git-ignored; ``TFWIKI_CACHE_DIR`` changes it, ``--refresh`` refetches).
+The tests use synthetic fixtures in ``tests/fixtures/tfwiki`` and make no
+network calls. The infobox parameter names the mapper accepts
+(``app/tfwiki.py``, ``ALIASES``) are guesses until checked against real pages.
