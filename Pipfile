@@ -9,18 +9,13 @@ pytest-cov = "*"
 pre-commit = "*"
 
 [packages]
-# Sub-issue 11 moved to Flask 2.2.5 and Werkzeug 2.3.8 (the first with scrypt,
-# which FAB hashes new passwords with). Flask 3 / Werkzeug 3 wait for sub-issue 13.
-flask = "==2.2.5"
+# Flask 3 / Werkzeug 3 (sub-issue 13). Newer Flask-AppBuilder releases allow them.
+flask = ">=3,<4"
 flask-appbuilder = "==5.3.0"
-werkzeug = "==2.3.8"
-# FAB 5 imports blinker without declaring it; Flask 2.2 does not pull it in
-# (Flask 2.3+ does), so it is listed here until Flask 3 (sub-issue 13).
-blinker = "*"
+werkzeug = ">=3,<4"
 # Sub-issue 12: FAB 5 is the first release that allows SQLAlchemy 2 and
 # Flask-SQLAlchemy 3 (FAB 4.8.1 needed <1.5 and <3).
 flask-migrate = ">=4,<5"
-flask-restful = "*"
 flask-sqlalchemy = ">=3,<4"
 sqlalchemy = ">=2,<3"
 # SQLAlchemy needs it only on some platforms, so a lock made on a Mac omits it.
@@ -28,8 +23,7 @@ greenlet = "*"
 pymysql = "*"
 gunicorn = "*"
 python-dotenv = "*"
-# 10.1 is the first Pillow with Python 3.12 wheels.
-pillow = ">=10.1,<11"
+pillow = ">=12"
 # PyYAML 6.0 does not build on 3.12.
 pyyaml = ">=6.0.1"
 
