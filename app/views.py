@@ -34,7 +34,7 @@ def send_image(item, thumbnail=False):
 
 class FranchiseModelView(ModelView):
     datamodel = SQLAInterface(Franchise)
-    base_order = ("start_year", "desc")
+    base_order = ("start_year", "asc")
     label_columns = {
         "image_thumb_show": "Picture",
         "image_show": "Picture",
@@ -66,7 +66,7 @@ class FranchiseModelView(ModelView):
 
 class FactionModelView(ModelView):
     datamodel = SQLAInterface(Faction)
-    base_order = ("name", "desc")
+    base_order = ("name", "asc")
     label_columns = {
         "image_thumb_show": "Picture",
         "image_show": "Picture",
@@ -90,7 +90,7 @@ class FactionModelView(ModelView):
 
 class ToolingModelView(ModelView):
     datamodel = SQLAInterface(Tooling)
-    base_order = ("name", "desc")
+    base_order = ("name", "asc")
     label_columns = {"figure_list": "Figures"}
     list_columns = ["name", "figure_list"]
     show_columns = ["name"]
@@ -98,7 +98,7 @@ class ToolingModelView(ModelView):
 
 class AccessoryModelView(ModelView):
     datamodel = SQLAInterface(Accessory)
-    base_order = ("name", "desc")
+    base_order = ("name", "asc")
     label_columns = {"figure_list": "Figures"}
     list_columns = ["name", "figure_list"]
     show_columns = ["name"]
@@ -106,7 +106,7 @@ class AccessoryModelView(ModelView):
 
 class CategoryModelView(ModelView):
     datamodel = SQLAInterface(Category)
-    base_order = ("name", "desc")
+    base_order = ("name", "asc")
     label_columns = {"figure_list": "Figures"}
     list_columns = ["name", "figure_list"]
     show_columns = ["name"]
@@ -114,7 +114,7 @@ class CategoryModelView(ModelView):
 
 class TFWikiLinkModelView(ModelView):
     datamodel = SQLAInterface(TFWikiLink)
-    base_order = ("name", "desc")
+    base_order = ("name", "asc")
     label_columns = {"figure_list": "Figures", "history_list": "History"}
     list_columns = ["name", "link_type", "link", "figure_list", "history_list"]
     show_columns = ["name", "link"]
@@ -122,7 +122,7 @@ class TFWikiLinkModelView(ModelView):
 
 class FigureModelView(ModelView):
     datamodel = SQLAInterface(Figure)
-    base_order = ("name", "desc")
+    base_order = ("name", "asc")
     label_columns = {
         "image_thumb_show": "Picture",
         "image_show": "Picture",
