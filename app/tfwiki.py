@@ -31,8 +31,11 @@ from app.models import (
 SITE = "https://tfwiki.net"
 API = SITE + "/mediawiki/api.php"
 WIKI = SITE + "/wiki/"
-USER_AGENT = "tfc-importer/1.0 (personal collection app; one page at a time)"
-MIN_DELAY = 1.0
+USER_AGENT = (
+    "tfc-importer/1.0 (+https://github.com/eratosthene/tfc; personal collection app)"
+)
+# Seconds between requests, enforced in Fetcher itself; one request at a time.
+MIN_DELAY = 2.0
 ROBOTS_TTL = 24 * 3600
 
 
@@ -44,11 +47,19 @@ class RobotsDisallowed(FetchError):
     pass
 
 
+class RateLimited(FetchError):
+    """The site answered 429 or 503: stop, do not retry."""
+
+
 def _http_get(url):
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             return resp.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        if exc.code in (429, 503):
+            raise RateLimited(f"{url}: HTTP {exc.code}; stopping") from exc
+        raise FetchError(f"Could not fetch {url}: HTTP {exc.code}") from exc
     except (urllib.error.URLError, OSError) as exc:
         raise FetchError(f"Could not fetch {url}: {exc}") from exc
 
@@ -68,7 +79,10 @@ class Fetcher:
         sleep=time.sleep,
         clock=time.monotonic,
         wall=time.time,
+        ignore_robots=False,
     ):
+        self.ignore_robots = ignore_robots
+        self._halted = False
         self.cache_dir = cache_dir
         self.delay = max(float(delay), MIN_DELAY)
         self._get = get
@@ -84,12 +98,17 @@ class Fetcher:
 
     def _request(self, url):
         """One network request, at least ``delay`` seconds after the last."""
+        if self._halted:
+            raise RateLimited("an earlier request was rate limited; not retrying")
         if self._last is not None:
             wait = self.delay - (self._clock() - self._last)
             if wait > 0:
                 self._sleep(wait)
         try:
             return self._get(url)
+        except RateLimited:
+            self._halted = True
+            raise
         finally:
             self._last = self._clock()
 
@@ -111,8 +130,9 @@ class Fetcher:
     def wikitext(self, page, refresh=False):
         """The page's wikitext, from the cache unless ``refresh``."""
 
-        key = hashlib.sha256(page.encode()).hexdigest()[:16]
-        path = self._cache_path(f"page-{key}.json")
+        # Keyed by title, so a figure's page and its character's are one entry.
+        page = _slug(page)
+        path = self._cache_path("page-" + _file_key(page) + ".json")
         if not refresh and os.path.exists(path):
             raw = open(path, encoding="utf-8").read()
         else:
@@ -129,7 +149,9 @@ class Fetcher:
                     }
                 )
             )
-            if not self._robots_parser().can_fetch(USER_AGENT, url):
+            if not self.ignore_robots and not self._robots_parser().can_fetch(
+                USER_AGENT, url
+            ):
                 raise RobotsDisallowed(
                     "tfwiki.net's robots.txt disallows this client; not fetching "
                     + page
@@ -138,6 +160,11 @@ class Fetcher:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(raw)
         return parse_response(raw, page)
+
+
+def _file_key(page):
+    safe = re.sub(r"[^A-Za-z0-9_()-]", "_", page)[:80]
+    return safe + "-" + hashlib.sha256(page.encode()).hexdigest()[:8]
 
 
 def parse_response(raw, page):
@@ -156,62 +183,13 @@ def parse_response(raw, page):
 
 
 # --- reading wikitext -------------------------------------------------------
-
-
-def _split_top(text, sep):
-    """Split on ``sep`` outside [[ ]] and {{ }}."""
-    parts, depth, cur, i = [], 0, [], 0
-    while i < len(text):
-        two = text[i : i + 2]
-        if two in ("[[", "{{"):
-            depth += 1
-            cur.append(two)
-            i += 2
-        elif two in ("]]", "}}"):
-            depth -= 1
-            cur.append(two)
-            i += 2
-        elif text[i] == sep and depth == 0:
-            parts.append("".join(cur))
-            cur = []
-            i += 1
-        else:
-            cur.append(text[i])
-            i += 1
-    parts.append("".join(cur))
-    return parts
-
-
-def find_templates(text):
-    """Every top-level ``{{name|...}}`` as (name, {field: raw value})."""
-    found, i = [], 0
-    while True:
-        start = text.find("{{", i)
-        if start < 0:
-            return found
-        depth, j = 0, start
-        while j < len(text):
-            two = text[j : j + 2]
-            if two == "{{":
-                depth += 1
-                j += 2
-            elif two == "}}":
-                depth -= 1
-                j += 2
-                if depth == 0:
-                    break
-            else:
-                j += 1
-        if depth != 0:
-            return found  # unbalanced braces: ignore the rest
-        parts = _split_top(text[start + 2 : j - 2], "|")
-        fields = {}
-        for part in parts[1:]:
-            if "=" in part:
-                k, v = part.split("=", 1)
-                fields[re.sub(r"[\s_]+", " ", k).strip().lower()] = v.strip()
-        found.append((parts[0].strip(), fields))
-        i = j
+#
+# A character's toys are on the page "Name_(Qualifier)/toys": a ===Toyline===
+# heading, then per figure a line like
+#   <ul class="iconlist">{{Bp-a1|'''Name''' (Class, 1984)}}</ul>
+# an optional {{anchor|X}} before it (the "#X" of the app's figure links) and
+# ":*''Label'': value" lines. Layout as recorded on 11 November 2026; there is
+# no infobox. See tests/fixtures/tfwiki.
 
 
 def clean(value):
@@ -227,82 +205,120 @@ def clean(value):
 
 
 def _items(value):
-    return [p.strip() for p in re.split(r"[\n;,]", clean(value)) if p.strip()]
+    parts = (
+        p.strip().strip(chr(34)).strip() for p in re.split(r"[\n;,]", clean(value))
+    )
+    return [p for p in parts if p]
 
 
-# Each Figure field and the infobox parameter names it can come from.
-ALIASES = {
-    "name": ("name", "title"),
-    "release_year": ("year", "release year", "released", "release"),
-    "franchise": ("franchise", "line", "series"),
-    "faction": ("faction", "allegiance"),
-    "tooling": ("tooling",),
-    "accessories": ("accessories", "accessory"),
-    "categories": ("category", "categories", "class", "size class"),
-    "exclusive_to": ("exclusive to", "exclusive", "retailer"),
-    "hasbro_id": ("hasbro id", "hasbro", "hasbro sku"),
-    "takara_id": ("takara id", "takara", "takara sku"),
-}
-LIST_FIELDS = ("franchise", "tooling", "accessories", "categories")
-
-
-def map_infobox(fields):
-    """Map an infobox's parameters to Figure fields (plain values, no rows)."""
-    out = {}
-    for target, names in ALIASES.items():
-        raw = next((fields[n] for n in names if fields.get(n)), None)
-        if raw is None:
-            continue
-        if target in LIST_FIELDS:
-            value = _items(raw)
-        elif target == "release_year":
-            m = re.search(r"\b(19|20)\d\d\b", clean(raw))
-            value = int(m.group(0)) if m else None
-        else:
-            value = clean(raw)
-        if value:
-            out[target] = value
-    return out
-
-
-def is_infobox(name):
-    n = re.sub(r"[\s_]+", "", name.lower())
-    return n.startswith("toyinfobox") or n.startswith("infobox")
-
-
-def split_page(title, wikitext, fragment=None):
-    """Figure sections of a page: [{"section", "fields"}], one per infobox.
-
-    A heading ``== Name ==`` starts a section. An infobox before any heading is
-    the section named after the page. With ``fragment`` (as in a link's ``#``
-    part) only that section is returned.
-    """
-    pieces = re.split(r"^=+\s*(.*?)\s*=+\s*$", wikitext, flags=re.M)
-    sections = [(title, pieces[0])]
-    sections += list(zip(pieces[1::2], pieces[2::2]))
-    out = []
-    for heading, body in sections:
-        heading = clean(heading)
-        for name, fields in find_templates(body):
-            if is_infobox(name) and (
-                fragment is None or _slug(heading) == _slug(fragment)
-            ):
-                out.append({"section": heading, "fields": map_infobox(fields)})
-                break
-    return out
+ITEM = re.compile(
+    r'<ul class="iconlist">\{\{Bp-([a-z0-9]+)\|\s*(.*?)\}\}</ul>', re.I | re.S
+)
+HEADING = re.compile(r"^===\s*([^=].*?)\s*===\s*$")
+ANCHOR = re.compile(r"\{\{anchor\|([^}|]+)\}\}", re.I)
+LABEL = re.compile(r"^:+\*\s*''([^']+?)''\s*:?\s*(.*)$")
+FACTIONS = {"a": "Autobot", "d": "Decepticon"}
 
 
 def _slug(text):
     return re.sub(r"[\s_]+", "_", text.strip())
 
 
+def _item_fields(code, body):
+    """Fields from one Bp- line: name, class, year, faction."""
+    m = re.match(r"(.*?)\s*\((.*)\)\s*$", body, re.S)
+    name, detail = (m.group(1), m.group(2)) if m else (body, "")
+    out = {"name": clean(name)}
+    detail = clean(re.sub(r"<s>.*?</s>", "", detail))
+    years = re.findall(r"\b(?:19|20)\d\d\b", detail)
+    if years:
+        out["release_year"] = int(years[0])
+    parts = [p.strip() for p in detail.split(",")]
+    kinds = [p for p in parts if p and not re.search(r"\b(?:19|20)\d\d\b", p)]
+    if kinds:
+        out["categories"] = kinds
+    letters = re.sub(r"\d", "", code.lower())
+    if letters in FACTIONS:  # "a1" is an Autobot; "a1d1" or "multi" is no one side
+        out["faction"] = FACTIONS[letters]
+    return out
+
+
+BULLETS = {
+    "accessories": ("accessories", "accessory"),
+    "takara_id": ("takara id number", "takaratomy id number", "takara id"),
+    "hasbro_id": ("hasbro id number", "hasbro id"),
+}
+
+
+def _bullet_fields(bullets):
+    out = {}
+    for label, value in bullets:
+        label = label.strip().rstrip(":").strip().lower()
+        for field, names in BULLETS.items():
+            if label in names and field not in out:
+                items = _items(value)
+                if field == "accessories":
+                    out[field] = items
+                elif items:
+                    out[field] = ", ".join(items)
+    return out
+
+
+def split_page(title, wikitext, fragment=None):
+    """The figures on a ``/toys`` page, in page order.
+
+    Each is {"section": a label for review, "fragment": the "#" part of its
+    link, "fields": {...}}; the toyline heading is its franchise. With
+    ``fragment`` only the figure whose anchor (or toyline heading) matches.
+    """
+    items, heading, anchor, cur = [], "", None, None
+    for line in wikitext.splitlines():
+        h = HEADING.match(line)
+        if h:
+            heading, anchor, cur = clean(h.group(1)), None, None
+            continue
+        a = ANCHOR.search(line)
+        if a:
+            anchor = a.group(1).strip()
+        m = ITEM.search(line)
+        if m:
+            fields = _item_fields(m.group(1), m.group(2))
+            cur = {
+                "heading": heading,
+                "fragment": _slug(anchor or heading or fields["name"]),
+                "fields": fields,
+                "bullets": [],
+            }
+            items.append(cur)
+            anchor = None
+            continue
+        b = LABEL.match(line)
+        if b and cur is not None:
+            cur["bullets"].append((b.group(1), b.group(2)))
+    out = []
+    for it in items:
+        it["fields"].update(_bullet_fields(it.pop("bullets")))
+        heading = it.pop("heading")
+        if heading:
+            it["fields"]["franchise"] = [heading]
+        it["section"] = f"{it['fields']['name']} ({heading or 'no toyline'})"
+        if fragment is None or _slug(fragment).lower() == it["fragment"].lower():
+            out.append(it)
+    return out
+
+
+def character_title(title):
+    """The character page behind a ``/toys`` page."""
+    return re.sub(r"/(Generations_)?toys$", "", title)
+
+
 def link_name(title):
     """The TFWikiLink name for a page: the title without its "(qualifier)"."""
-    return re.sub(r"\s*\([^)]*\)$", "", title).strip()
+    return re.sub(r"\s*\([^)]*\)$", "", character_title(title)).strip()
 
 
 def page_url(title):
-    return WIKI + urllib.parse.quote(_slug(title), safe="()!,'_-.:")
+    return WIKI + urllib.parse.quote(_slug(title), safe="()!,'_-.:/")
 
 
 # --- database ---------------------------------------------------------------
@@ -329,12 +345,14 @@ def plan_import(title, section):
     already in the database; then nothing is to be saved).
     """
     f = section["fields"]
-    base = page_url(title)
-    char = {"name": link_name(title), "link": base}
-    fig = {"name": link_name(title), "link": f"{base}#{_slug(section['section'])}"}
+    char = {"name": link_name(title), "link": page_url(character_title(title))}
+    fig = {
+        "name": link_name(title),
+        "link": f"{page_url(title)}#{section['fragment']}",
+    }
     plan = {
         "section": section["section"],
-        "figure": {k: v for k, v in f.items()},
+        "figure": dict(f),
         "character_link": char,
         "figure_link": fig,
         "new": [],
