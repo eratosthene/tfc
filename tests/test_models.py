@@ -231,3 +231,25 @@ def test_a_continuity_belongs_to_at_most_one_family():
     db.session.commit()
     assert foc.family.name == "Aligned" and str(foc.family) == "Aligned"
     assert alone.family is None
+
+
+def test_figure_continuity_and_family_show():
+    fig = Figure(name="F")
+    with flask_app.test_request_context():
+        assert fig.continuity_show() == "" and fig.family_show() == ""
+        char = Character(name="C", link=WIKI + "C")
+        fig.character_new = char
+        assert fig.continuity_show() == "" and fig.family_show() == ""
+        char.continuity = Continuity(id=4, name="G1")
+        assert "/continuitymodelview/show/4" in fig.continuity_show()
+        assert fig.family_show() == ""
+        char.continuity.family = ContinuityFamily(id=9, name="Generation 1")
+        assert "/continuityfamilymodelview/show/9" in fig.family_show()
+        assert ">Generation 1</a>" in fig.family_show()
+
+
+def test_a_blank_legacy_id_becomes_none():
+    assert Faction(name="A", legacy_id="").legacy_id is None
+    assert Figure(name="F", legacy_id="5f1234567890abcdef123456").legacy_id == (
+        "5f1234567890abcdef123456"
+    )

@@ -1,5 +1,6 @@
 import io
 import os
+import re
 
 import pytest
 from PIL import Image
@@ -340,3 +341,59 @@ def test_empty_link_and_accessories_are_saved_as_none(auth_client, seed):
     db.session.expire_all()
     fig = db.session.get(Figure, fig.id)
     assert fig.link == "https://x/y" and fig.accessories_text == "A, B"
+
+
+def test_two_figures_can_be_added_with_a_blank_legacy_id(auth_client, seed):
+    # The form sends "" for the empty legacy_id box, and the column is unique.
+    link = "https://tfwiki.net/wiki/Same#Link"
+    for name in ("First", "Second"):
+        html = post_figure(
+            auth_client, figure_form(seed, name=name, link=link, legacy_id="")
+        )
+        assert "Duplicate entry" not in html
+    figures = db.session.query(Figure).filter(Figure.name.in_(["First", "Second"]))
+    assert [f.legacy_id for f in figures] == [None, None]
+    assert figures.count() == 2
+
+
+def test_other_forms_also_accept_a_blank_legacy_id_twice(auth_client):
+    for name in ("One", "Two"):
+        auth_client.post(
+            "/factionmodelview/add",
+            data={"name": name, "legacy_id": ""},
+            follow_redirects=True,
+        )
+    assert (
+        db.session.query(Faction).filter(Faction.name.in_(["One", "Two"])).count() == 2
+    )
+
+
+def test_the_figure_page_has_continuity_and_family_sections(auth_client, seed):
+    html = auth_client.get("/figuremodelview/show/%s" % seed["figure"].id).get_data(
+        as_text=True
+    )
+    assert re.search(r"<th[^>]*>\s*Continuity\s*</th>", html)
+    assert re.search(r"<th[^>]*>\s*Continuity Family\s*</th>", html)
+    assert "/continuitymodelview/show/%s" % seed["continuity"].id in html
+    assert "/continuityfamilymodelview/show/%s" % seed["family"].id in html
+
+
+def test_the_figure_form_drop_downs_are_in_name_order(auth_client, seed):
+    from app.models import Character
+
+    db.session.add_all(
+        Character(name=n, link="https://tfwiki.net/wiki/" + n)
+        for n in ("Zed", "Alpha", "Mid")
+    )
+    db.session.commit()
+    html = auth_client.get("/figuremodelview/add").get_data(as_text=True)
+    names = ["Alpha", "Mid", "Optimus Prime", "Zed"]
+    positions = [html.index(">%s</option>" % n) for n in names]
+    assert positions == sorted(positions)
+
+
+def test_the_reference_boxes_are_full_width_and_tall(auth_client, seed):
+    html = auth_client.get("/figuremodelview/add").get_data(as_text=True)
+    for field in ("history_text", "packed_with_text"):
+        tag = re.search(r'<textarea[^>]*name="%s"[^>]*>' % field, html).group(0)
+        assert 'class="form-control"' in tag and 'rows="8"' in tag
