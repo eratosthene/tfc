@@ -3,11 +3,10 @@ import os
 from flask import abort, flash, render_template, send_from_directory, current_app
 from flask_appbuilder import ModelView, expose, has_access, permission_name
 from flask_appbuilder.filemanager import thumbgen_filename
-from flask_appbuilder.models.sqla.interface import SQLAInterface
 from sqlalchemy import select
-from wtforms import TextAreaField
+from wtforms import TextAreaField, widgets
 from app import app, appbuilder
-from app.franchises import FigureInterface, check_parent
+from app.franchises import FigureInterface, NameSortedInterface, check_parent
 from app.models import (
     Character,
     Continuity,
@@ -39,7 +38,7 @@ def send_image(item, thumbnail=False):
 
 
 class FranchiseModelView(ModelView):
-    datamodel = SQLAInterface(Franchise)
+    datamodel = NameSortedInterface(Franchise)
     base_order = ("start_year", "asc")
     label_columns = {
         "image_thumb_show": "Picture",
@@ -115,7 +114,7 @@ class FranchiseModelView(ModelView):
 
 
 class FactionModelView(ModelView):
-    datamodel = SQLAInterface(Faction)
+    datamodel = NameSortedInterface(Faction)
     base_order = ("name", "asc")
     label_columns = {
         "image_thumb_show": "Picture",
@@ -139,7 +138,7 @@ class FactionModelView(ModelView):
 
 
 class ToolingModelView(ModelView):
-    datamodel = SQLAInterface(Tooling)
+    datamodel = NameSortedInterface(Tooling)
     base_order = ("name", "asc")
     label_columns = {"figure_list": "Figures"}
     list_columns = ["name", "figure_list"]
@@ -147,7 +146,7 @@ class ToolingModelView(ModelView):
 
 
 class CategoryModelView(ModelView):
-    datamodel = SQLAInterface(Category)
+    datamodel = NameSortedInterface(Category)
     base_order = ("name", "asc")
     label_columns = {"figure_list": "Figures"}
     list_columns = ["name", "figure_list"]
@@ -155,7 +154,7 @@ class CategoryModelView(ModelView):
 
 
 class CharacterModelView(ModelView):
-    datamodel = SQLAInterface(Character)
+    datamodel = NameSortedInterface(Character)
     base_order = ("name", "asc")
     label_columns = {"link_show": "Link", "figure_list": "Figures"}
     list_columns = ["name", "continuity", "link_show", "figure_list"]
@@ -165,7 +164,7 @@ class CharacterModelView(ModelView):
 
 
 class ContinuityModelView(ModelView):
-    datamodel = SQLAInterface(Continuity)
+    datamodel = NameSortedInterface(Continuity)
     base_order = ("name", "asc")
     label_columns = {
         "link_show": "Link",
@@ -179,7 +178,7 @@ class ContinuityModelView(ModelView):
 
 
 class ContinuityFamilyModelView(ModelView):
-    datamodel = SQLAInterface(ContinuityFamily)
+    datamodel = NameSortedInterface(ContinuityFamily)
     base_order = ("name", "asc")
     label_columns = {
         "link_show": "Link",
@@ -198,15 +197,26 @@ REFERENCE_FIELDS = (
 )
 
 
+class FullWidthTextArea(widgets.TextArea):
+    """A text box as wide as the form, tall enough for a few lines."""
+
+    def __call__(self, field, **kwargs):
+        kwargs["class"] = "form-control"
+        kwargs["rows"] = 8
+        return super().__call__(field, **kwargs)
+
+
 def reference_fields():
     return {
         "history_text": TextAreaField(
             "Model History",
             description="One ancestor per line:  Name | https://tfwiki.net/wiki/...",
+            widget=FullWidthTextArea(),
         ),
         "packed_with_text": TextAreaField(
             "Packed With",
             description="One per line:  Name | https://tfwiki.net/wiki/...",
+            widget=FullWidthTextArea(),
         ),
     }
 
@@ -218,6 +228,8 @@ class FigureModelView(ModelView):
         "image_thumb_show": "Picture",
         "image_show": "Picture",
         "character_show": "Character",
+        "continuity_show": "Continuity",
+        "family_show": "Continuity Family",
         "character_new": "Character",
         "franchise_show": "Franchise(s)",
         "faction_show": "Faction",
@@ -242,6 +254,8 @@ class FigureModelView(ModelView):
         "name",
         "image_show",
         "character_show",
+        "continuity_show",
+        "family_show",
         "franchise_show",
         "faction_show",
         "release_year",

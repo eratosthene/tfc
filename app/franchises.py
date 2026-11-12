@@ -131,7 +131,20 @@ class FigureFilterConverter(SQLAFilterConverter):
         return super().convert(col_name)
 
 
-class FigureInterface(SQLAInterface):
+class NameSortedInterface(SQLAInterface):
+    """Drop-downs and lists sort by name unless a view asks for another order.
+
+    Flask-AppBuilder builds a related-field drop-down with an unsorted query, so
+    the choices came out in the order they were created.
+    """
+
+    def query(self, filters=None, order_column="", order_direction="", *args, **kwargs):
+        if not order_column and hasattr(self.obj, "name"):
+            order_column, order_direction = "name", "asc"
+        return super().query(filters, order_column, order_direction, *args, **kwargs)
+
+
+class FigureInterface(NameSortedInterface):
     filter_converter_class = FigureFilterConverter
 
 

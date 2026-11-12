@@ -13,7 +13,7 @@ from sqlalchemy import (
     func,
     select,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 
 from app import db
 
@@ -51,6 +51,11 @@ class Legacy:
     """
 
     legacy_id = Column(String(24), unique=True)
+
+    @validates("legacy_id")
+    def _blank_legacy_id_is_null(self, key, value):
+        # A form sends "" for an empty box, and the column is unique.
+        return value or None
 
 
 class Named:
@@ -564,6 +569,23 @@ class Figure(Legacy, Named, db.Model):
         if char.continuity:
             text += " (" + char.continuity.name + ")"
         return _link(char.link, text)
+
+    def continuity_show(self):
+        continuity = self.character_new.continuity if self.character_new else None
+        if continuity is None:
+            return Markup("")
+        return _link(
+            url_for("ContinuityModelView.show", pk=str(continuity.id)), continuity
+        )
+
+    def family_show(self):
+        continuity = self.character_new.continuity if self.character_new else None
+        if continuity is None or continuity.family is None:
+            return Markup("")
+        return _link(
+            url_for("ContinuityFamilyModelView.show", pk=str(continuity.family.id)),
+            continuity.family,
+        )
 
     def franchise_show(self):
         # The tagged franchises, then the ones above them (app/franchises.py).
