@@ -6,6 +6,7 @@ from flask_appbuilder.filemanager import thumbgen_filename
 from sqlalchemy import select
 from wtforms import TextAreaField, widgets
 from app import app, appbuilder
+from app import continuities  # noqa: F401 (registers flask set-continuity-names)
 from app.franchises import FigureInterface, NameSortedInterface, check_parent
 from app.models import (
     Character,
@@ -168,13 +169,21 @@ class ContinuityModelView(ModelView):
     base_order = ("name", "asc")
     label_columns = {
         "link_show": "Link",
+        "full_name": "Full name",
         "character_list": "Characters",
         "figure_list": "Figures",
     }
-    list_columns = ["name", "family", "link_show", "character_list", "figure_list"]
-    show_columns = ["name", "family", "link_show"]
-    add_columns = edit_columns = ["name", "family", "link"]
-    search_columns = ["name", "family", "link"]
+    list_columns = [
+        "name",
+        "full_name",
+        "family",
+        "link_show",
+        "character_list",
+        "figure_list",
+    ]
+    show_columns = ["name", "full_name", "family", "link_show"]
+    add_columns = edit_columns = ["name", "full_name", "family", "link"]
+    search_columns = ["name", "full_name", "family", "link"]
 
 
 class ContinuityFamilyModelView(ModelView):
