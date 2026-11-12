@@ -14,10 +14,12 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-export COMPOSE_FILE="${COMPOSE_FILE:-docker/compose.yml}"
+compose_file="${COMPOSE_FILE:-docker/compose.yml}"
 # On the live server docker needs sudo; set DOCKER="sudo docker" for that.
 read -r -a docker <<< "${DOCKER:-docker}"
-compose=("${docker[@]}" compose)
+# -f rather than exporting COMPOSE_FILE: sudo resets the environment, so the
+# variable would never reach `sudo docker compose`.
+compose=("${docker[@]}" compose -f "$compose_file")
 out="${BACKUP_DIR:-backups}"
 stamp="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$out"
