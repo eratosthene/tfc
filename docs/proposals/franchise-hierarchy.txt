@@ -1,0 +1,72 @@
+# The franchise hierarchy agreed on 12 Nov 2026, drafted from https://tfwiki.net/wiki/Franchises
+# and the anchors in the franchise links. Apply it with
+#   flask set-franchise-parents docs/proposals/franchise-hierarchy.txt          (lists changes)
+#   flask set-franchise-parents docs/proposals/franchise-hierarchy.txt --apply
+#
+# Two spaces of indent = one level down. A line is a franchise name exactly as it is
+# in tfc; "#" starts a comment. Franchises not named here are left as they are
+# (Generation 2, Machine Wars, Transformers: Robots in Disguise, Alternators,
+# Titanium Series, Star Wars Transformers, Masterpiece, Legends, the Universe lines,
+# Transformers (2010), Platinum Edition, HasLab, Collaborative, Buzzworthy Bumblebee, Retro).
+
+Generation 1
+  Commemorative Series
+  Vintage G1
+
+Beast Era
+  Beast Wars: Transformers
+  Beast Machines: Transformers
+
+Unicron Trilogy
+  Transformers: Armada
+  Transformers: Energon
+  Transformers: Cybertron
+
+Live-Action Film Series
+  Transformers (Movie)
+  Transformers: Revenge of the Fallen
+  Transformers: Dark of the Moon
+  Transformers: Bumblebee
+    Bumblebee Greatest Hits
+
+Transformers: Prime
+  Prime 10 Year Anniversary
+  Beast Hunters
+    Beast Hunters: Predacons Rising
+
+Transformers: Generations
+  Thrilling 30
+  Fall of Cybertron
+  Retro Headmasters
+  Transformers: Shattered Glass
+  Comic Edition
+  Studio Series
+  Generations Selects
+  Prime Wars Trilogy
+    Combiner Wars
+    Titans Return
+    Power of the Primes
+  War for Cybertron Trilogy
+    War for Cybertron: Siege
+    War for Cybertron: Earthrise
+      Cybertronian Villains
+      Galactic Odyssey Collection
+    War for Cybertron: Kingdom
+      Battle Across Time Collection
+      Golden Disk Collection
+    Transformers: War for Cybertron Trilogy (Netflix)
+  Transformers: Legacy
+    United
+    Evolution
+    Wreck N' Rule Collection
+    Velocitron Speedia 500 Collection
+    Pre-Cybertronian War Collection
+    Doom 'n Destruction Collection
+    Star Raider Collection
+  Age of the Primes
+    Wreck 'n Doom Collection
+
+Transformers: Cyberverse
+  Bumblebee Cyberverse Adventures
+  Dinobots Unite
+  Power of the Spark

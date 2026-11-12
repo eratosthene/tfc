@@ -245,3 +245,107 @@ def test_prune_apply_removes_the_covered_tags_and_keeps_order(tree):
 def test_prune_with_nothing_to_do(tree):
     assert "Nothing to prune." in run().output
     assert flask_app.cli.get_command(None, "prune-franchises") is not None
+
+
+# --- flask set-franchise-parents ------------------------------------------------
+
+from app.franchises import parse_tree, plan_parents, set_franchise_parents  # noqa: E402
+
+TREE_FILE = """
+# a comment
+Transformers
+  Generations   # trailing comment
+    Legacy
+  Prime
+
+Other
+"""
+
+
+def test_parse_tree_reads_indent_comments_and_blank_lines():
+    entries, problems = parse_tree(TREE_FILE)
+    assert problems == []
+    assert [(name, parent) for _line, name, parent in entries] == [
+        ("Transformers", None),
+        ("Generations", "Transformers"),
+        ("Legacy", "Generations"),
+        ("Prime", "Transformers"),
+        ("Other", None),
+    ]
+    assert entries[1][0] == 4  # line numbers count the comment and blank lines
+
+
+@pytest.mark.parametrize(
+    "text, message",
+    [
+        ("A\n B\n", "two spaces per level"),
+        ("A\n\tB\n", "two spaces per level"),
+        ("A\n    B\n", "more than one level"),
+    ],
+)
+def test_parse_tree_reports_a_bad_indent(text, message):
+    entries, problems = parse_tree(text)
+    assert message in problems[0]
+    assert [e[1] for e in entries] == ["A"]
+
+
+def set_parents(text, *args):
+    result = CliRunner().invoke(set_franchise_parents, ["-", *args], input=text)
+    db.session.expire_all()
+    return result
+
+
+def test_set_parents_lists_changes_and_saves_nothing_by_default(tree):
+    text = "Transformers\n  Prime\n    Legacy\n"
+    result = set_parents(text)
+    assert result.exit_code == 0
+    assert "Legacy: parent Prime (was Generations)" in result.output
+    assert "1 franchises would change. Run again with --apply." in result.output
+    assert db.session.get(Franchise, tree["legacy"].id).parent.name == "Generations"
+
+
+def test_set_parents_apply_saves_and_a_second_run_has_nothing_to_do(tree):
+    text = "Transformers\n  Prime\n    Legacy\n      Legacy United\n"
+    result = set_parents(text, "--apply")
+    assert result.exit_code == 0 and "Changed 1 franchises." in result.output
+    assert db.session.get(Franchise, tree["legacy"].id).parent.name == "Prime"
+    assert "Nothing to change." in set_parents(text, "--apply").output
+
+
+def test_a_top_level_name_clears_its_parent(tree):
+    assert set_parents("Legacy\n", "--apply").exit_code == 0
+    assert db.session.get(Franchise, tree["legacy"].id).parent is None
+
+
+@pytest.mark.parametrize(
+    "text, message",
+    [
+        ("Transformers\n  Nonesuch\n", "line 2: no franchise is called Nonesuch"),
+        ("Prime\nPrime\n", "line 2: Prime is listed twice"),
+        ("Prime\n   Legacy\n", "line 2: indent with two spaces"),
+    ],
+)
+def test_set_parents_changes_nothing_if_anything_is_wrong(tree, text, message):
+    result = set_parents(text, "--apply")
+    assert result.exit_code == 1
+    assert message in result.output and "Nothing was changed" in result.output
+    assert db.session.get(Franchise, tree["root"].id).parent is None
+    assert db.session.get(Franchise, tree["prime"].id).parent.name == "Transformers"
+
+
+def test_set_parents_refuses_a_name_two_franchises_share(tree):
+    franchise("Prime")
+    db.session.commit()
+    result = set_parents("Prime\n", "--apply")
+    assert result.exit_code == 1 and "2 franchises are called Prime" in result.output
+
+
+def test_set_parents_refuses_a_tree_that_is_too_deep(tree):
+    names = ["Deep %d" % n for n in range(MAX_DEPTH + 1)]
+    for name in names:
+        franchise(name)
+    db.session.commit()
+    text = "".join("  " * i + name + "\n" for i, name in enumerate(names))
+    result = set_parents(text, "--apply")
+    assert result.exit_code == 1 and "levels deep" in result.output
+    assert plan_parents([(1, "Prime", None)])[0][0][1].name == "Prime"

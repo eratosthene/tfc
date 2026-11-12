@@ -169,3 +169,108 @@ def prune_franchises(apply_):
         click.echo("Removed %d tags." % len(found))
     else:
         click.echo("%d tags would be removed. Run again with --apply." % len(found))
+
+
+# --- flask set-franchise-parents --------------------------------------------
+
+
+def parse_tree(text):
+    """Read an indented list of franchise names.
+
+    Two spaces of indent is one level down; blank lines and ``#`` comments are
+    skipped. Returns ([(line number, name, parent name or None)], [problems]).
+    """
+    entries = []
+    problems = []
+    stack = []
+    for number, raw in enumerate(text.splitlines(), 1):
+        line = raw.split("#", 1)[0].rstrip()
+        if not line.strip():
+            continue
+        spaces = len(line) - len(line.lstrip(" "))
+        if line.lstrip(" ").startswith("\t") or spaces % 2:
+            problems.append("line %d: indent with two spaces per level" % number)
+            continue
+        level = spaces // 2
+        if level > len(stack):
+            problems.append("line %d: indented more than one level" % number)
+            continue
+        del stack[level:]
+        entries.append((number, line.strip(), stack[-1] if stack else None))
+        stack.append(line.strip())
+    return entries, problems
+
+
+def plan_parents(entries):
+    """Match the names to franchises. Returns ([(line, franchise, parent)], [problems]),
+    listing only the franchises whose parent would change."""
+    by_name = {}
+    for row in db.session.scalars(select(Franchise).order_by(Franchise.id)):
+        by_name.setdefault(row.name, []).append(row)
+    problems = []
+    seen = set()
+    for number, name, _parent in entries:
+        if name in seen:
+            problems.append("line %d: %s is listed twice" % (number, name))
+        seen.add(name)
+        if name not in by_name:
+            problems.append("line %d: no franchise is called %s" % (number, name))
+        elif len(by_name[name]) > 1:
+            problems.append(
+                "line %d: %d franchises are called %s"
+                % (number, len(by_name[name]), name)
+            )
+    if problems:
+        return [], problems
+    changes = []
+    for number, name, parent_name in entries:
+        row = by_name[name][0]
+        parent = by_name[parent_name][0] if parent_name else None
+        if row.parent_id != (parent.id if parent else None):
+            changes.append((number, row, parent))
+    return changes, problems
+
+
+@app.cli.command("set-franchise-parents")
+@click.argument("file", type=click.File("r"))
+@click.option(
+    "--apply", "apply_", is_flag=True, help="Save the changes (default: only list)."
+)
+def set_franchise_parents(file, apply_):
+    """Set franchise parents from an indented list of names (FILE, or - for stdin).
+
+    Each parent is checked like the form checks it (no loops, at most 8 levels).
+    Lists the changes and saves nothing unless --apply is given; if anything is
+    wrong, nothing is saved either way. Franchises not named in the file are left
+    alone. See docs/proposals/franchise-hierarchy.txt.
+    """
+    entries, problems = parse_tree(file.read())
+    changes = []
+    if not problems:
+        changes, problems = plan_parents(entries)
+    for number, row, parent in changes:
+        was = row.parent.name if row.parent else "none"
+        try:
+            check_parent(row, parent)
+            row.parent = parent
+            db.session.flush()
+        except ValueError as error:
+            problems.append("line %d: %s" % (number, error))
+        click.echo(
+            "%s: parent %s (was %s)"
+            % (row.name, parent.name if parent else "none", was)
+        )
+    if problems:
+        db.session.rollback()
+        click.echo("Nothing was changed. Problems:")
+        for problem in problems:
+            click.echo("  " + problem)
+        raise SystemExit(1)
+    if not changes:
+        click.echo("Nothing to change.")
+    elif apply_:
+        db.session.commit()
+        click.echo("Changed %d franchises." % len(changes))
+    else:
+        db.session.rollback()
+        click.echo("%d franchises would change. Run again with --apply." % len(changes))
