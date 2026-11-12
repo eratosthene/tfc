@@ -9,9 +9,55 @@ lists what I can only decide once I have.
 
 Contents: 1 Problems · 2 Target model · 3 Add Figure flow · 4 Migration ·
 5 Production dump and what it will decide · 6 PR plan · 7 Tests · 8 Risks ·
-9 Open questions
+9 Open questions (all answered; see Decisions)
 
 ---
+
+## Decisions (answered by Chris, 11 Nov 2026) and what the production dump showed
+
+| Q | Decision |
+|---|---|
+| 1 Non-owned figures | No rows; ancestors and pack-mates are per-figure name+link references |
+| 2 No-suffix characters | Continuity nullable, left blank for Chris to fill, never guessed |
+| 3 Character key | Unique by link |
+| 4 Shared figure links | Allowed, with a warning at add time |
+| 5 Accessories | **Comma-separated** (not one per line). See the note below on the one name containing commas |
+| 6 Franchises | Single parent, tag the lowest level, previewed prune, Claude drafts the hierarchy |
+| 7 Wiki images | **Link/preview plus an optional "use this picture" download button** (the button saves into the uploads folder only when clicked; nothing is downloaded by default) |
+| 8 Fetching | In the web app, behind `TFWIKI_ENABLED` (default off) |
+| 9 Downtime | A few minutes at cutover is fine |
+| 10 Old tables | Kept about 4 weeks |
+| 11 Fixtures | Yes: the issue's seven pages plus three chosen from the dump: `Omega_Prime` (anchor `Robots_in_Disguise_.282001.29`, percent-style encoding), `Optimus_Prime_(G1)/Generations_toys` (the other toys suffix) and `The_Fallen/toys` (page title differs from the figure's name, "Megatronus the Fallen") |
+| 12 `legacy_id` | Left alone |
+| 13 Bulk import | **Never wanted.** Removed from the scope entirely, not "later" |
+
+Dump findings (the dump was examined on 11 Nov 2026; nothing was changed):
+661 figures, 1480 `tf_wiki_link` rows (927 with `#`, 553 without), 292 of the figure
+links already in the new `/toys` form, 71 franchises, 574 accessories, 57 gestalt
+rows, 411 history and 597 packed-with rows, 564 distinct links used as history or
+packed-with, 150 links not referenced by any figure, 160 of the 553 character links
+without a `(X)` suffix, and every link a `tfwiki.net/wiki` URL. Surprises that change
+the transform:
+
+- **A link's type must come from how a figure uses it, not from `#`.** Six *character*
+  links carry a `#fragment` (e.g. `Squawktalk_(G1)#The_Transformers`,
+  `Rumble_(G1)/toys#Vintage_G1`, `Wingspan#Titans_Return`), and one history/pack-mate
+  link has none (`Metroplex_(G1)`). The transform therefore classifies by role
+  (character, figure link, ancestor, packed-with); a character link's fragment and
+  `/toys` suffix are stripped when making the `character.link`, and the original
+  string is listed in the report.
+- Anchors use MediaWiki's old escaping (`Robots_in_Disguise_.282001.29` means
+  "Robots in Disguise (2001)"). Link comparison and display must decode it; stored
+  links stay verbatim.
+- The `Generations_toys` suffix really occurs, so the parser handles both suffixes.
+- Franchise names have no parent/child hints in the data, as expected; the hierarchy
+  proposal is a separate step (below).
+- Exactly one accessory name contains a comma
+  (`Devastator components (waist, breastplate, forearms)/Trailer`). With the comma-separated
+  layout this would split into three accessories on `reverse` and in search results. The
+  transform stores that entry with its commas intact (searching still finds it) and the
+  report names it; `reverse` takes a one-off exception for it, and verification
+  compares text, not a re-split list, so nothing is lost.
 
 ## 1. What is wrong today
 
@@ -51,8 +97,7 @@ Removed at the end (Section 6, PR 7): `tf_wiki_link`, `accessory`,
 
 ### Decisions and trade-offs
 
-**Accessories: a `Text` column on `figure`.** One value per line or
-comma-separated (open question Q5). Searchable with FAB's existing "contains"
+**Accessories: a `Text` column on `figure`.** Comma-separated (Q5, decided). Searchable with FAB's existing "contains"
 filter (`LIKE`), which is fine for a personal collection of a few thousand rows;
 no FULLTEXT index needed. The old `Accessory` view and its "Search Figures" link
 go away; searching accessories happens in the Figure list's filter box.
@@ -201,9 +246,10 @@ Parsing (pure functions, tested on recorded wikitext fixtures), per the findings
   then by exact name; unmatched stays blank. Neither the anchor nor the heading
   is trusted to equal a franchise name.
 - **Picture:** the first `File:` link in the block, shown as a link and a preview
-  *hot-linked from the wiki page*. Not downloaded and not stored. Images stay
-  under his control: he uploads his own photo (these are photos of figures he
-  owns) in the review form.
+  *hot-linked from the wiki page*. Nothing is downloaded or stored unless Chris
+  clicks "use this picture", which saves that one image into the uploads folder
+  through the normal image column; or he uploads his own photo in the review form.
+  Images stay under his control.
 
 **3. Review, then save.** One pre-filled form showing every field with its
 source and a confidence hint ("from Bp-a1", "guessed from sentence"), the raw
@@ -216,9 +262,8 @@ transaction:
   merge, update, or overwrite anything entered by hand;
 - stores `name`/`link` references for ancestors and pack-mates exactly as shown.
 
-Edits afterwards use the normal edit form. No bulk crawl ("import all of Bumblebee's
-40 figures") is in scope; that can follow once single-figure import is trusted,
-and it would reuse the cache.
+Edits afterwards use the normal edit form. There is no bulk import ("import all of
+Bumblebee's 40 figures"); Chris does not want one.
 
 ---
 
@@ -265,11 +310,16 @@ migrate_data_model.py reverse   # rebuild the old structures from the new ones, 
 
 The transform:
 
-1. **Classify each `tf_wiki_link`** by URL as today: contains `#` -> a figure link,
-   else a character link. Rows whose URL is not `tfwiki.net/wiki/...` are
-   reported, copied unchanged and flagged.
+1. **Classify each `tf_wiki_link` by the role it plays**, not by its URL: used as a
+   figure's `character_id` -> character; as `figure_link_id` -> figure link; in
+   `figure_history` / `figure_packed_with` -> reference. A link used in two roles is
+   fine and is reported. Rows whose URL is not `tfwiki.net/wiki/...` are flagged
+   (none in the current dump).
 2. **Continuities:** distinct `(X)` suffixes of character links become `continuity`
-   rows (name = X; link blank for Chris to fill).
+   rows (name = X; link blank for Chris to fill). The dump has about 30 distinct
+   suffixes (G1, Armada, SG, RID, Cyberverse, BW, Movie, G2, BM, ...), some of them not
+   continuities (`facility`, `species`), so the review list shows each with its
+   characters before anything is created.
 3. **Characters:** one `character` row per distinct link used by a figure's
    `character_id`, `name` from the old row, `continuity` from the suffix (or
    NULL, reported). Figures' `character_id_new` set.
@@ -397,8 +447,8 @@ the 100 % line coverage gate (`app/` only; `scripts/` are tested separately).
 
 1. **TFWiki fetcher and parser** (no schema, no UI). Cross-worker throttle,
    cache, opt-in setting, wikitext parser, recorded fixtures (from the reference
-   branch, plus Alpha Trion, Animated Bumblebee, Blackarachnia, Blaster, Boater and
-   Bruticus pages, a few requests, with approval). Can start immediately and be
+   branch, plus the issue's seven pages and the three from the dump named above, about
+   10 requests, 2 s apart, approved). Can start immediately and be
    reviewed on its own.
 2. **Expand schema + models + data script.** Revision E and the new models (unused
    by the views), `scripts/migrate_data_model.py` (`dry-run`, `apply`, `verify`,
@@ -415,7 +465,7 @@ the 100 % line coverage gate (`app/` only; `scripts/` are tested separately).
    Deployed with the Section 4 steps.
 5. **Add from TFWiki.** The three-step page of Section 3, `franchise_alias`, the
    faction symbol list, the cache volume.
-6. **Link modernisation** (optional): "check/modernize links", previewed, using only
+6. **Link modernisation** (optional; the dump has 292 of 927 figure links already in the `/toys` form, so most are old-style): "check/modernize links", previewed, using only
    the cache and approved fetches.
 7. **Contract.** Guarded revision C, delete old models and scripts' old paths,
    README cleanup. Ships weeks after PR 4 once Chris is satisfied.
@@ -459,37 +509,14 @@ PRs 1 and 3 can proceed in parallel with the dump round trip; 4 needs 2; 5 needs
 - **Franchise hierarchy errors** affect filtering only; `prune` is never automatic.
 - **Contract is the point of no return;** it is separate, guarded and delayed.
 
-## 9. Open questions, with my recommended answer
+## 9. Open questions
 
-1. **Rows for figures not owned?** Recommended: **no**. Ancestors/pack-mates are
-   per-figure name+link references (Section 2).
-2. **Characters with no `(X)` suffix** (Boater, Alpha Trion): continuity set by
-   Chris in review (and via a "needs review" list during migration)? Recommended:
-   **yes, nullable, never guessed.**
-3. **Is a Character unique by link?** Recommended: **yes.** Same character in two
-   continuities is two rows with two links.
-4. **May two Figure rows share a `link`** (two copies)? Recommended: **yes**, with
-   a warning at add time.
-5. **Accessories separator and layout:** comma-separated, or one per line?
-   Recommended: **one per line** (wiki names often contain commas); the dry-run
-   will say whether any existing accessory names contain either.
-6. **Franchise nesting:** single parent only, and tag figures with the lowest level
-   only, with an *optional previewed* prune of redundant ancestor tags? Recommended:
-   **yes.** Should I propose the hierarchy from the dump? Recommended: **yes, for
-   you to correct.**
-7. **Wiki images:** hot-link preview only, never copied; Chris uploads his own
-   photos? Recommended: **yes.**
-8. **Fetching from inside the web app** (a few seconds on the first paste) rather than
-   a CLI only? Recommended: **yes**, behind `TFWIKI_ENABLED` (default off), with the
-   shared throttle and cache.
-9. **A few minutes of downtime** at cutover, with a backup taken first? Recommended:
-   **yes.**
-10. **How long to keep the old tables** before the contract PR? Recommended:
-    **about 4 weeks.**
-11. **Which wiki figure examples should I record as test fixtures?** Recommended:
-    **the seven pages in the issue**, fetched once, with your OK (roughly 10 requests
-    at 2 s).
-12. **Leave the old `legacy_id` (MongoDB) columns alone** in this work? Recommended:
-    **yes**; remove them in a separate cleanup.
-13. **Do you want the bulk "import every toy on this page" command** later? Recommended:
-    **not now**; revisit after the single-figure flow is in use.
+All thirteen were answered; see "Decisions" at the top. Still open, to settle on the
+real data during PR 2:
+
+1. The continuity names (about 30 suffixes in the dump, some not real continuities) and
+   which characters need one filled in; 160 characters have no suffix.
+2. The franchise hierarchy for the 71 franchises (a draft will be proposed for Chris to
+   correct).
+3. The 150 unreferenced links (not migrated): confirm they can be left behind in the
+   old table until the contract PR.
