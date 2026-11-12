@@ -4,7 +4,7 @@ from flask import abort, render_template, send_from_directory, current_app
 from flask_appbuilder import ModelView, expose, has_access, permission_name
 from flask_appbuilder.filemanager import thumbgen_filename
 from flask_appbuilder.models.sqla.interface import SQLAInterface
-from app import appbuilder
+from app import app, appbuilder
 from app.models import (
     Franchise,
     Faction,
@@ -189,7 +189,7 @@ appbuilder.add_view(TFWikiLinkModelView, "TFWikiLinks")
 """
 
 
-@appbuilder.app.errorhandler(404)
+@app.errorhandler(404)
 def page_not_found(e):
     return render_template(
         "404.html", base_template=appbuilder.base_template, appbuilder=appbuilder
