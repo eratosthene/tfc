@@ -11,6 +11,7 @@ from sqlalchemy import (
     Text,
     event,
     func,
+    select,
 )
 from sqlalchemy.orm import relationship
 
@@ -273,6 +274,16 @@ class TFWikiLink(Legacy, db.Model):
 # The structures of docs/proposals/data-model.md. They sit next to the old ones
 # (tf_wiki_link, accessory, ...) until the cutover and are filled in by
 # scripts/migrate_data_model.py; the views do not read them yet.
+def _link(url, text):
+    return Markup('<a href="{}">{}</a>').format(url, text)
+
+
+def _list_link(view, text, **filters):
+    return Markup('<a href="{}">{}</a>').format(
+        url_for(view + ".list", **filters), text
+    )
+
+
 class ContinuityFamily(Named, db.Model):
     """The wiki's grouping of continuities (Aligned, Generation 1, Robots in
     Disguise...). A continuity such as RID or FOC belongs to at most one."""
@@ -282,6 +293,19 @@ class ContinuityFamily(Named, db.Model):
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False, unique=True)
     link = Column(String(500))
+
+    def link_show(self):
+        return _link(self.link, self.link) if self.link else Markup("")
+
+    def continuity_list(self):
+        return _list_link(
+            "ContinuityModelView", "Continuities", _flt_0_family=str(self.id)
+        )
+
+    def figure_list(self):
+        return _list_link(
+            "FigureModelView", "Search Figures", _flt_0_family=str(self.id)
+        )
 
 
 class Continuity(Named, db.Model):
@@ -293,6 +317,19 @@ class Continuity(Named, db.Model):
     family_id = Column(Integer, ForeignKey("continuity_family.id"))
 
     family = relationship("ContinuityFamily")
+
+    def link_show(self):
+        return _link(self.link, self.link) if self.link else Markup("")
+
+    def character_list(self):
+        return _list_link(
+            "CharacterModelView", "Characters", _flt_0_continuity=str(self.id)
+        )
+
+    def figure_list(self):
+        return _list_link(
+            "FigureModelView", "Search Figures", _flt_0_continuity=str(self.id)
+        )
 
 
 class Character(Named, db.Model):
@@ -306,6 +343,14 @@ class Character(Named, db.Model):
     continuity_id = Column(Integer, ForeignKey("continuity.id"))
 
     continuity = relationship("Continuity")
+
+    def link_show(self):
+        return _link(self.link, self.link)
+
+    def figure_list(self):
+        return _list_link(
+            "FigureModelView", "Search Figures", _flt_0_character_new=str(self.id)
+        )
 
 
 class FranchiseAlias(db.Model):
@@ -384,7 +429,8 @@ class Figure(Legacy, Named, db.Model):
         ImageColumn(thumbnail_size=(300, 300, False), size=(2000, 2000, False)),
     )
     figure_link_id = Column(Integer, ForeignKey("tf_wiki_link.id"))
-    character_id = Column(Integer, ForeignKey("tf_wiki_link.id"), nullable=False)
+    # The old structure, kept until the contract PR. New figures leave it empty.
+    character_id = Column(Integer, ForeignKey("tf_wiki_link.id"))
     faction_id = Column(Integer, ForeignKey("faction.id"), nullable=False)
     exclusive_to = Column(String(255))
     hasbro_id = Column(String(255))
@@ -399,6 +445,36 @@ class Figure(Legacy, Named, db.Model):
     accessories_text = Column(Text)
 
     character_new = relationship("Character")
+    # Read-only paths for the Figure list's filters and searches.
+    continuity = relationship(
+        "Continuity",
+        secondary=Character.__table__,
+        primaryjoin="Figure.character_id_new == Character.id",
+        secondaryjoin="Character.continuity_id == Continuity.id",
+        viewonly=True,
+    )
+    family = relationship(
+        "ContinuityFamily",
+        secondary=lambda: Character.__table__.join(
+            Continuity.__table__, Character.continuity_id == Continuity.id
+        ),
+        primaryjoin="Figure.character_id_new == Character.id",
+        secondaryjoin="Continuity.family_id == ContinuityFamily.id",
+        viewonly=True,
+    )
+    ancestors = relationship(
+        "FigureReference",
+        primaryjoin="and_(Figure.id == FigureReference.figure_id, "
+        "FigureReference.kind == 'ancestor')",
+        order_by="FigureReference.position",
+        viewonly=True,
+    )
+    references = relationship(
+        "FigureReference",
+        order_by="FigureReference.kind, FigureReference.position, FigureReference.id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
     figure_link = relationship("TFWikiLink", foreign_keys=[figure_link_id])
     character = relationship("TFWikiLink", foreign_keys=[character_id])
     faction = relationship("Faction")
@@ -465,11 +541,6 @@ class Figure(Legacy, Named, db.Model):
             )
         return m
 
-    def link_show(self, link):
-        if link is None:
-            return Markup("")
-        return Markup('<a href="{}">{}</a>').format(link.link, str(link))
-
     def link_list_show(self, link_list, hasimg=False):
         m = Markup('<table class="table table-condensed table-striped"><tbody>')
         for item in link_list:
@@ -486,7 +557,13 @@ class Figure(Legacy, Named, db.Model):
         return m
 
     def character_show(self):
-        return self.link_show(self.character)
+        char = self.character_new
+        if char is None:
+            return Markup("")
+        text = char.name
+        if char.continuity:
+            text += " (" + char.continuity.name + ")"
+        return _link(char.link, text)
 
     def franchise_show(self):
         # The tagged franchises, then the ones above them (app/franchises.py).
@@ -495,13 +572,40 @@ class Figure(Legacy, Named, db.Model):
         return self.link_list_show(effective_franchises(self), True)
 
     def figure_link_show(self):
-        return self.link_show(self.figure_link)
+        return _link(self.link, self.link) if self.link else Markup("")
+
+    def _references_show(self, kind, others):
+        refs = [r for r in self.references if r.kind == kind]
+        owned = {}
+        if refs:
+            for fid, link in db.session.execute(
+                select(Figure.id, Figure.link)
+                .where(Figure.link.in_({r.link for r in refs}))
+                .order_by(Figure.id.desc())
+            ):
+                owned[link] = fid
+        m = Markup('<table class="table table-condensed table-striped"><tbody>')
+        for ref in refs:
+            m += Markup("<tr><td>") + _link(ref.link, ref.name)
+            if ref.link in owned:
+                m += Markup(" &mdash; ") + _link(
+                    url_for("FigureModelView.show", pk=str(owned[ref.link])),
+                    "In collection",
+                )
+            if others:
+                m += Markup(" &middot; ") + _list_link(
+                    "FigureModelView",
+                    "Other figures from this ancestor",
+                    _flt_0_ancestors=ref.link,
+                )
+            m += Markup("</td></tr>")
+        return m + Markup("</tbody></table>")
 
     def history_show(self):
-        return self.link_list_show(self.history)
+        return self._references_show("ancestor", True)
 
     def packed_with_show(self):
-        return self.link_list_show(self.packed_with)
+        return self._references_show("packed_with", False)
 
 
 class FigureReference(db.Model):

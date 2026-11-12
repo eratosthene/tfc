@@ -1,7 +1,10 @@
+from collections import defaultdict
+
 from flask_appbuilder import IndexView
 from flask_appbuilder.views import expose
-from sqlalchemy import func
+from sqlalchemy import func, select
 from app import db
+from app.franchises import descendant_ids, parent_map
 from app.models import (
     Category,
     Faction,
@@ -27,6 +30,24 @@ def _by_assoc(model, table, key, order_by):
     return [{key: obj, "total": total} for obj, total in rows]
 
 
+def _by_franchise():
+    """Figures per franchise, counting the ones tagged with anything below it."""
+    parents = parent_map()
+    tagged = defaultdict(set)
+    for figure_id, franchise_id in db.session.execute(
+        select(figure_franchise.c.figure_id, figure_franchise.c.franchise_id)
+    ):
+        tagged[franchise_id].add(figure_id)
+    rows = []
+    franchises = select(Franchise).order_by(Franchise.start_year, Franchise.id)
+    for franchise in db.session.scalars(franchises):
+        figures = set()
+        for franchise_id in descendant_ids(franchise.id, parents):
+            figures |= tagged[franchise_id]
+        rows.append({"franchise": franchise, "total": len(figures)})
+    return rows
+
+
 class MyIndexView(IndexView):
     index_template = "index.html"
 
@@ -34,9 +55,7 @@ class MyIndexView(IndexView):
     def index(self):
         self.update_redirect()
         num_figures = db.session.query(func.count(Figure.id)).scalar()
-        by_franchise = _by_assoc(
-            Franchise, figure_franchise, "franchise", [Franchise.start_year]
-        )
+        by_franchise = _by_franchise()
         by_faction = [
             {"faction": obj, "total": total}
             for obj, total in db.session.query(Faction, func.count(Figure.id))

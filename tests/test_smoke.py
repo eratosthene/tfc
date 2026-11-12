@@ -5,9 +5,10 @@ VIEWS = [
     ("franchisemodelview", "franchise"),
     ("factionmodelview", "faction"),
     ("toolingmodelview", "tooling"),
-    ("accessorymodelview", "accessory"),
     ("categorymodelview", "category"),
-    ("tfwikilinkmodelview", "character"),
+    ("charactermodelview", "character"),
+    ("continuitymodelview", "continuity"),
+    ("continuityfamilymodelview", "family"),
 ]
 
 
