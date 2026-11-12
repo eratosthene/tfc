@@ -172,6 +172,18 @@ continuity family, ancestor link and accessory text.
 
 The permissions of the removed views stay in the database harmlessly.
 
+Continuity full names
+~~~~~~~~~~~~~~~~~~~~~
+
+A continuity's name comes from the wiki page suffix (``G1``, ``ROTF``), so it
+is often an abbreviation. Its *Full name* is a separate, optional field, shown
+in the Continuities list and editable in its form. ``flask set-continuity-names
+FILE`` fills them in from lines like ``G1 = Generation 1``; it lists the changes
+and saves nothing unless ``--apply`` is given, leaves names that are already
+set alone unless ``--overwrite``, and saves nothing if any line is wrong.
+``docs/proposals/continuity-names.txt`` is the drafted list. In Docker:
+``docker compose -f docker/compose.yml exec -T tfc flask set-continuity-names - --apply < docs/proposals/continuity-names.txt``.
+
 Nested franchises
 ~~~~~~~~~~~~~~~~~
 

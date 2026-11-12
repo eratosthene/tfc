@@ -1,0 +1,29 @@
+# Full names for the continuities, drafted 12 Nov 2026. Apply with
+#   flask set-continuity-names docs/proposals/continuity-names.txt          (lists)
+#   flask set-continuity-names docs/proposals/continuity-names.txt --apply
+# Names that are not abbreviations are repeated or given the wiki's title.
+# "?" marks a guess to check.
+
+G1 = Generation 1
+G2 = Generation 2
+Marvel = Marvel Comics (G1 comics)
+IDW = IDW Publishing comics (2005 continuity)
+BW = Beast Wars
+BM = Beast Machines
+KP = Kiss Players
+Armada = Transformers: Armada
+Energon = Transformers: Energon
+Cybertron = Transformers: Cybertron
+Movie = Live-action movies
+ROTF = Revenge of the Fallen
+BB = Bumblebee (film)
+Animated = Transformers Animated
+Prime = Transformers: Prime
+FOC = Fall of Cybertron
+WFC = War for Cybertron
+Cyberverse = Transformers: Cyberverse
+RID = Robots in Disguise (2001 and 2015)
+RID 2001 = Robots in Disguise (2001)
+SG = Shattered Glass
+Diaclone = Diaclone
+Universe = Transformers: Universe (2003 and 2008)

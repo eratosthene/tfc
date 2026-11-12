@@ -319,6 +319,7 @@ class Continuity(Named, db.Model):
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False, unique=True)
     link = Column(String(500))
+    full_name = Column(String(255))
     family_id = Column(Integer, ForeignKey("continuity_family.id"))
 
     family = relationship("ContinuityFamily")
