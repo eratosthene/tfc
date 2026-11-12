@@ -28,30 +28,33 @@ def _symbol(fetcher, code, factions):
     return css, parser.faction_from_class(css, factions)
 
 
-def read_figure(fetcher, url, factions=parser.DEFAULT_FACTIONS):
+def read_figure(fetcher, url, factions=parser.DEFAULT_FACTIONS, search_all=False):
     """Suggestions for the figure a tfwiki.net link points at.
 
-    Reads the page, and when the figure is not on it follows a
-    ``{{main|Name/toys}}`` pointer (the toys of long character pages were moved
-    to their own page). Returns the character, and for each matching entry the
-    suggested fields and its canonical link. Raises ``parser.ParseError`` for a
-    link that is not a tfwiki.net page, ``FigureNotFound`` when the page has no
-    such figure, and the fetcher's errors unchanged.
+    Reads the page, and when the figure is not on it follows the
+    ``{{main|Name/toys}}`` pointers (the toys of long character pages were moved
+    to their own pages). It stops at the first toys page that has the figure,
+    unless ``search_all`` is set, which reads every toys page and returns a
+    candidate from each page that has it. Returns the character, and for each
+    matching entry the suggested fields and its canonical link. Raises
+    ``parser.ParseError`` for a link that is not a tfwiki.net page,
+    ``FigureNotFound`` when no page has such a figure, and the fetcher's errors
+    unchanged.
     """
     asked, fragment = parser.parse_url(url)
     title, text = fetcher.page(asked)
     moved = normalize_title(title).lower() != asked.lower()
     entries = parser.entries(text, title)
-    hits = _found(entries, fragment)
-    if not hits:
+    found = [(title, e, how) for e, how in _found(entries, fragment)]
+    if not found:
         for pointer in parser.toys_pointers(text, title):
             title, text = fetcher.page(pointer)
             moved = True
             entries = parser.entries(text, title)
-            hits = _found(entries, fragment)
-            if hits:
+            found += [(title, e, how) for e, how in _found(entries, fragment)]
+            if found and not search_all:
                 break
-    if not hits:
+    if not found:
         available = sorted(
             {e["heading"] for e in entries if e["heading"]}
             | {a for e in entries for a in e["anchors"]}
@@ -63,10 +66,10 @@ def read_figure(fetcher, url, factions=parser.DEFAULT_FACTIONS):
             available,
         )
     candidates = []
-    for entry, how in hits:
+    for page, entry, how in found:
         use = fragment or (entry["anchors"] or [entry["heading"]])[0]
-        link = parser.page_url(title, use or None)
-        fields = parser.figure_fields(entry, title, factions, own_urls=(link,))
+        link = parser.page_url(page, use or None)
+        fields = parser.figure_fields(entry, page, factions, own_urls=(link,))
         if fields["faction"] is None and fields["bp_code"]:
             css, faction = _symbol(fetcher, fields["bp_code"], factions)
             fields["symbol_class"] = css
@@ -82,9 +85,9 @@ def read_figure(fetcher, url, factions=parser.DEFAULT_FACTIONS):
             }
         )
     return {
-        "page": title,
+        "page": found[0][0],
         "fragment": fragment,
         "moved": moved,
-        "character": parser.character(title),
+        "character": parser.character(found[0][0]),
         "candidates": candidates,
     }

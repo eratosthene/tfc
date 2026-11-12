@@ -156,6 +156,48 @@ def test_spaces_and_underscores_in_an_anchor_are_the_same():
     assert m.check(wiki, WIKI + "Name_(G1)#Two_Words").status == m.REWRITE
 
 
+def two_toys_pages(first, second):
+    return Fake(
+        {
+            "Name_(G1)": (
+                "Name (G1)",
+                "{{main|Name (G1)/toys}}\n{{main|Name (G1)/Generations toys}}\n",
+            ),
+            "Name_(G1)/toys": ("Name (G1)/toys", toys(*first)),
+            "Name_(G1)/Generations_toys": ("Name (G1)/Generations toys", toys(*second)),
+        }
+    )
+
+
+def test_both_toys_pages_are_searched():
+    wiki = two_toys_pages([entry("Other")], [entry("Wanted")])
+    result = m.check(wiki, WIKI + "Name_(G1)#Wanted")
+    assert result.status == m.REWRITE
+    assert result.new == WIKI + "Name_(G1)/Generations_toys#Wanted"
+
+
+def test_the_second_toys_page_is_read_even_when_the_first_has_the_anchor():
+    wiki = two_toys_pages([entry("Wanted")], [entry("Other")])
+    result = m.check(wiki, WIKI + "Name_(G1)#Wanted")
+    assert result.new == WIKI + "Name_(G1)/toys#Wanted"
+    assert wiki.asked == ["Name_(G1)", "Name_(G1)/toys", "Name_(G1)/Generations_toys"]
+
+
+def test_an_anchor_on_both_toys_pages_is_ambiguous():
+    wiki = two_toys_pages([entry("Same")], [entry("Same")])
+    result = m.check(wiki, WIKI + "Name_(G1)#Same")
+    assert result.status == m.AMBIGUOUS and result.new is None
+
+
+def test_the_figure_reader_still_stops_at_the_first_toys_page_by_default():
+    from app.tfwiki.figure import read_figure
+
+    wiki = two_toys_pages([entry("Same")], [entry("Same")])
+    result = read_figure(wiki, WIKI + "Name_(G1)#Same")
+    assert [c["link"] for c in result["candidates"]] == [WIKI + "Name_(G1)/toys#Same"]
+    assert "Name_(G1)/Generations_toys" not in wiki.asked
+
+
 def test_a_redirect_is_not_a_move_to_a_toys_page():
     wiki = Fake({"Old_Name": ("New Name (G1)", toys(entry("Thing")))})
     assert m.check(wiki, WIKI + "Old_Name#Thing").status == m.REDIRECT
