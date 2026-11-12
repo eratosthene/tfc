@@ -53,9 +53,11 @@ services:
     volumes:
       - ../config.py:/app/config.py:ro
       - uploads:/app/app/static/uploads
+      - tfwiki-cache:/app/tfwiki-cache
     ports:
       - "127.0.0.1:5561:9999"
 
 volumes:
   db:
   uploads:
+  tfwiki-cache:

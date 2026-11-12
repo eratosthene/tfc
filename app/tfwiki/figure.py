@@ -75,6 +75,7 @@ def read_figure(fetcher, url, factions=parser.DEFAULT_FACTIONS):
         candidates.append(
             {
                 "matched_by": how,
+                "anchors": entry["anchors"],
                 "link": link,
                 "fields": fields,
                 "block": "\n".join(entry["lines"]),

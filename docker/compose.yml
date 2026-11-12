@@ -43,6 +43,13 @@ services:
         target: /app/app/static/uploads
         bind:
           create_host_path: false
+      # TFWIKI_CACHE_DIR in config.py.tpl: pages fetched from tfwiki.net, kept so
+      # each is fetched once. Nothing is fetched unless TFWIKI_ENABLED is on.
+      # Docker makes the folder if it is missing, owned by root; before turning
+      # fetching on, `chown 1000 tfwiki-cache` it (the app runs as UID 1000).
+      - type: bind
+        source: ../tfwiki-cache
+        target: /app/tfwiki-cache
     ports:
       # Same port inside and out; fbc2 uses 20000 and vc 19999.
       - "9999:9999"
