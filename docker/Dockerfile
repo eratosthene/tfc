@@ -29,6 +29,8 @@ EXPOSE 9999
 WORKDIR /app
 COPY ./app /app/app
 COPY ./migrations /app/migrations
+# For the data-model move (README: "Moving to the new data model").
+COPY ./scripts/migrate_data_model.py /app/scripts/migrate_data_model.py
 COPY --chmod=755 ./docker/docker-entrypoint.sh /app/docker-entrypoint.sh
 
 # gunicorn runs as this user. The mounted uploads folder must be writable by

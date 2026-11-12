@@ -141,6 +141,39 @@ CI also requires 100% line coverage of ``app/`` (``--cov=app --cov-fail-under=10
 see ``.coveragerc`` for what is not measured: ``migrations/``, ``scripts/`` and
 the tests). Check it locally with ``python -m pytest --cov=app --cov-report=term-missing``.
 
+Moving to the new data model
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``docs/proposals/data-model.md`` describes the new model (characters,
+continuities, per-figure references, accessories as text). It arrives in steps.
+This one only *adds*: the ``b2d4f6a8c013`` revision creates the new tables and
+columns next to the old ones, and runs on deploy like any revision. The app
+does not read them yet, so nothing looks different.
+
+``scripts/migrate_data_model.py`` fills them from the old tables. It never
+deletes or changes the old tables. **Take a backup first** (``scripts/backup.sh``),
+then, from the repo root on the server:
+
+.. code-block:: bash
+
+	docker compose -f docker/compose.yml exec tfc python scripts/migrate_data_model.py dry-run
+	docker compose -f docker/compose.yml exec tfc python scripts/migrate_data_model.py apply
+	docker compose -f docker/compose.yml exec tfc python scripts/migrate_data_model.py verify
+
+``dry-run`` does everything in a transaction, prints the plan and the lists to
+look at (characters with no ``(X)`` continuity, character links rewritten, links
+used in more than one role, links that are not tfwiki.net, links nothing uses,
+accessories whose name contains a comma, missing upload files), and rolls
+back. ``apply`` does it for real, checks every figure against the old data, and
+refuses to commit if anything differs. ``verify`` repeats the comparison and
+records that it passed (the revision that finally drops the old tables needs
+that). ``reverse`` rebuilds the old structures from the new ones and clears
+those records. Options: ``--no-continuity NAME`` leaves a suffix that is not a
+continuity (``facility``) blank, ``--json PATH`` also writes the report, and
+``--again`` lets ``apply`` run twice, overwriting edits made in the new
+structures since. Run ``verify`` straight after ``apply``: once the new
+structures are edited it reports those edits as differences.
+
 Migrating the Mongo data
 ~~~~~~~~~~~~~~~~~~~~~~~~
 

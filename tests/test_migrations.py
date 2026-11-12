@@ -34,3 +34,25 @@ def test_migrations_build_the_models_schema():
         with db.engine.connect() as conn:
             ctx = MigrationContext.configure(conn, opts={"include_object": _is_ours})
             assert compare_metadata(ctx, db.metadata) == []
+
+
+def test_expand_revision_downgrades_and_upgrades_again():
+    """b2d4f6a8c013 only adds, so going back one step drops just what it added."""
+    from flask_migrate import downgrade
+    from sqlalchemy import inspect
+
+    with flask_app.app_context():
+        downgrade(revision="a1c3e5f7b902")
+        insp = inspect(db.engine)
+        tables = set(insp.get_table_names())
+        assert not tables & {"continuity", "character", "figure_reference"}
+        assert "tf_wiki_link" in tables
+        assert "link" not in {c["name"] for c in insp.get_columns("figure")}
+        upgrade()
+        insp = inspect(db.engine)
+        assert {"continuity", "character", "figure_reference"} <= set(
+            insp.get_table_names()
+        )
+        assert {"link", "character_id_new", "accessories_text"} <= {
+            c["name"] for c in insp.get_columns("figure")
+        }
