@@ -169,7 +169,8 @@ refuses to commit if anything differs. ``verify`` repeats the comparison and
 records that it passed (the revision that finally drops the old tables needs
 that). ``reverse`` rebuilds the old structures from the new ones and clears
 those records. Options: ``--no-continuity NAME`` leaves a suffix that is not a
-continuity (``facility``) blank, ``--json PATH`` also writes the report, and
+continuity (``facility``) blank, ``--family "NAME=SUFFIX,SUFFIX"`` (repeatable) puts those suffixes' continuities in a
+continuity family, creating it, ``--json PATH`` also writes the report, and
 ``--again`` lets ``apply`` run twice, overwriting edits made in the new
 structures since. Run ``verify`` straight after ``apply``: once the new
 structures are edited it reports those edits as differences.
