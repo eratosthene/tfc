@@ -81,7 +81,8 @@ the transform:
 ## 2. Target data model
 
 ```
-continuity            id, name (unique), link
+continuity_family     id, name (unique), link                 -- the wiki's grouping: Aligned, Generation 1, Robots in Disguise
+continuity            id, name (unique), link, family_id -> continuity_family (nullable)
 character             id, name, link (unique), continuity_id -> continuity (nullable)
 franchise             + parent_id -> franchise (nullable, self-reference)
 franchise_alias       id, franchise_id, alias (unique)        -- wiki heading/anchor -> franchise
@@ -242,6 +243,7 @@ Parsing (pure functions, tested on recorded wikitext fixtures), per the findings
 - **Continuity and character:** from the `Name_(X)` page title when it has a
   suffix, otherwise unset (see Q2). Character match is by link; an existing
   Character is reused, never edited.
+- **Faction and continuity family:** a character page's lead sentence ("Omega Prime is an [[Autobot]] ... from the [[Robots in Disguise continuity family]]"; "... the Fall of Cybertron portion of the [[Aligned continuity family]]") gives a faction and a family, and often a portion (era). Both are wiki links, so they are read as suggestions with the sentence shown, never saved unseen. The family is stored on `continuity_family`; a portion is matched to one of our continuities by Chris. This can also suggest a continuity for a character with no `(X)` suffix, such as Boater ("Victory era of the Generation 1 continuity family").
 - **Franchise:** toyline heading, else anchor, looked up in `franchise_alias`,
   then by exact name; unmatched stays blank. Neither the anchor nor the heading
   is trusted to equal a franchise name.
@@ -290,6 +292,7 @@ Bumblebee's 40 figures"); Chris does not want one.
 | # | Revision | What it does | Downgrade |
 |---|---|---|---|
 | E | `expand_data_model` | Create `continuity`, `character`, `figure_reference`, `franchise_alias`, `data_model_migration`; add `franchise.parent_id`, `figure.link`, `figure.character_id_new`, `figure.accessories_text`. Additive only, all nullable. | Drops what it created. |
+| F | `add_continuity_family` | Create `continuity_family`; add `continuity.family_id` (nullable). Additive only, added after E when the wiki's lead sentences showed the grouping. | Drops both. |
 | C | `contract_data_model` (PR 7) | Guard, then drop `figure_link_id`, `figure_history`, `figure_packed_with`, `figure_accessory`, `accessory`, `tf_wiki_link`; rename the `_new`/`_text` columns to their final names; make `character_id` `NOT NULL` | Recreates the *structure*; data comes back with `reverse` or a restore. After C, rollback is a backup restore, and I say so in the PR. |
 
 Existing safety nets reused: `tests/test_migrations.py` already checks that
