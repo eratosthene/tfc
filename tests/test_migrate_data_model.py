@@ -13,6 +13,7 @@ from app.models import (
     Accessory,
     Character,
     Continuity,
+    ContinuityFamily,
     DataModelMigration,
     Faction,
     Figure,
@@ -367,3 +368,90 @@ def test_json_report_is_written(old_data, tmp_path):
 def test_an_empty_database_is_fine(capsys):
     assert run(["dry-run"]) == 0
     assert "figures: 0" in capsys.readouterr().out
+
+
+@pytest.fixture
+def two_continuities(old_data):
+    """Adds a character from another continuity, so there are G1 and Animated."""
+    animated = link("Bumblebee", "Bumblebee_(Animated)")
+    db.session.add(
+        Figure(
+            name="Animated Bumblebee",
+            release_year=2008,
+            faction=db.session.scalar(select(Faction)),
+            character=animated,
+        )
+    )
+    db.session.commit()
+
+
+def families():
+    return {
+        c.name: c.family.name if c.family else None
+        for c in db.session.scalars(select(Continuity))
+    }
+
+
+def test_family_groups_the_continuities_it_lists(two_continuities, capsys):
+    assert run(["dry-run", "--family", "Generation 1=G1"]) == 0
+    out = capsys.readouterr().out
+    assert "Generation 1" in out and "continuities_without_family" in out
+    assert db.session.query(ContinuityFamily).count() == 0  # dry-run saved nothing
+    assert (
+        run(["apply", "--family", "Generation 1=G1", "--family", "Aligned=Animated"])
+        == 0
+    )
+    assert families() == {"G1": "Generation 1", "Animated": "Aligned"}
+    assert db.session.query(ContinuityFamily).count() == 2
+
+
+def test_a_continuity_left_out_of_every_family_has_none(two_continuities):
+    assert run(["apply", "--family", "Generation 1=G1"]) == 0
+    assert families() == {"G1": "Generation 1", "Animated": None}
+
+
+def test_apply_again_keeps_a_family_set_by_hand(two_continuities):
+    run(["apply", "--family", "Generation 1=G1"])
+    other = ContinuityFamily(name="Mine")
+    db.session.add(other)
+    db.session.flush()
+    db.session.scalar(
+        select(Continuity).where(Continuity.name == "G1")
+    ).family_id = other.id
+    db.session.commit()
+    assert run(["apply", "--again", "--family", "Generation 1=G1,Animated"]) == 0
+    assert families() == {
+        "G1": "Mine",
+        "Animated": "Generation 1",
+    }  # only the empty one is filled
+    assert (
+        db.session.query(ContinuityFamily).filter_by(name="Generation 1").count() == 1
+    )
+
+
+@pytest.mark.parametrize(
+    "args, message",
+    [
+        (["--family", "Aligned=Nowhere"], "which no character's page has"),
+        (
+            ["--family", "G1 stuff=G1", "--no-continuity", "G1"],
+            "--no-continuity leaves out",
+        ),
+        (["--family", "A=G1", "--family", "B=G1"], "'G1' is in both 'A' and 'B'"),
+    ],
+)
+def test_a_family_listing_that_cannot_be_applied_is_a_problem(
+    two_continuities, capsys, args, message
+):
+    assert run(["apply"] + args) == 1
+    assert message in capsys.readouterr().out
+    assert db.session.query(ContinuityFamily).count() == 0
+    assert db.session.query(Character).count() == 0  # rolled back
+
+
+@pytest.mark.parametrize("spec", ["Aligned", "=G1", "Aligned=", "Aligned= , "])
+def test_a_badly_formed_family_is_refused(old_data, spec, capsys):
+    with pytest.raises(SystemExit) as stop:
+        run(["dry-run", "--family", spec])
+    assert stop.value.code == 2
+    assert "NAME=SUFFIX" in capsys.readouterr().err

@@ -21,7 +21,10 @@ config.py is, normally inside the app container:
 
 Options: ``--no-continuity NAME`` (repeatable) leaves characters whose page suffix
 is NAME without a continuity (for suffixes that are not continuities, like
-``facility``); ``--again`` lets ``apply`` run a second time, which overwrites
+``facility``); ``--family "NAME=SUFFIX,SUFFIX"`` (repeatable) puts the continuities
+for those suffixes in a continuity family, creating it (``--family "Generation
+1=G1,G2"``). A suffix no character has, or one left out, is reported as a
+problem; ``--again`` lets ``apply`` run a second time, which overwrites
 anything edited in the new structures since; ``--json PATH`` also writes the report
 as JSON. The exit status is 0 only if nothing was wrong.
 """
@@ -50,6 +53,7 @@ from app.models import (  # noqa: E402
     Category,
     Character,
     Continuity,
+    ContinuityFamily,
     DataModelMigration,
     Faction,
     Figure,
@@ -188,7 +192,7 @@ def read_old(session):
     return old
 
 
-def make_plan(old, skip_continuities=()):
+def make_plan(old, skip_continuities=(), families=None):
     """What the new structures should hold, and what needs a human look.
 
     Pure: it reads ``old`` and decides; nothing is written.
@@ -228,8 +232,30 @@ def make_plan(old, skip_continuities=()):
         char["continuity"] = None if suffix in skip_continuities else suffix
         if char["continuity"]:
             continuities.setdefault(suffix, []).append(char["name"])
+    placed = {}
+    problems = []
+    for family, suffixes in (families or {}).items():
+        for suffix in suffixes:
+            if suffix in skip_continuities:
+                problems.append(
+                    "family %r lists %r, which --no-continuity leaves out"
+                    % (family, suffix)
+                )
+            elif suffix not in continuities:
+                problems.append(
+                    "family %r lists %r, which no character's page has"
+                    % (family, suffix)
+                )
+            elif suffix in placed:
+                problems.append(
+                    "%r is in both %r and %r" % (suffix, placed[suffix], family)
+                )
+            else:
+                placed[suffix] = family
     used = set(roles)
     return {
+        "problems": problems,
+        "families": placed,
         "continuities": continuities,
         "characters": characters,
         "figures": figures,
@@ -238,6 +264,11 @@ def make_plan(old, skip_continuities=()):
             "links": len(links),
             "characters": len(characters),
             "continuities": {k: len(v) for k, v in continuities.items()},
+            "families": {
+                f: [s for s in continuities if placed.get(s) == f]
+                for f in OrderedDict.fromkeys(placed.values())
+            },
+            "continuities_without_family": [s for s in continuities if s not in placed],
             "references": sum(len(f["refs"]) for f in figures.values()),
             "with_accessories": sum(1 for f in figures.values() if f["accessories"]),
             "no_suffix": sorted(
@@ -289,11 +320,20 @@ def make_plan(old, skip_continuities=()):
 
 def write_plan(session, plan):
     """Create what is missing and set the new columns. Never touches the old data."""
+    families = {f.name: f for f in session.scalars(select(ContinuityFamily))}
+    for name in OrderedDict.fromkeys(plan["families"].values()):
+        if name not in families:
+            families[name] = ContinuityFamily(name=name)
+            session.add(families[name])
+    session.flush()
     continuities = {c.name: c for c in session.scalars(select(Continuity))}
     for name in plan["continuities"]:
         if name not in continuities:
             continuities[name] = Continuity(name=name)
             session.add(continuities[name])
+        family = families.get(plan["families"].get(name))
+        if family and continuities[name].family_id is None:
+            continuities[name].family_id = family.id
     session.flush()
     characters = {c.link: c for c in session.scalars(select(Character))}
     for page, spec in plan["characters"].items():
@@ -442,7 +482,7 @@ def marker(session, step):
 # --- the commands -----------------------------------------------------------
 
 
-def do_transform(session, skip, commit, again=False):
+def do_transform(session, skip, commit, again=False, families=None):
     """dry-run (commit=False) and apply (commit=True). Returns (report, problems)."""
     if commit and not again and marker(session, "apply") is not None:
         return {}, [
@@ -451,9 +491,9 @@ def do_transform(session, skip, commit, again=False):
             % marker(session, "apply").recorded_at
         ]
     before = checksum(session)
-    plan = make_plan(read_old(session), skip)
+    plan = make_plan(read_old(session), skip, families)
     write_plan(session, plan)
-    problems = []
+    problems = list(plan["problems"])
     after = checksum(session)
     for name in before:
         if before[name] != after[name]:
@@ -464,7 +504,15 @@ def do_transform(session, skip, commit, again=False):
     if problems or not commit:
         session.rollback()
     else:
-        record(session, "apply", {"skipped": sorted(skip), "figures": info["figures"]})
+        record(
+            session,
+            "apply",
+            {
+                "skipped": sorted(skip),
+                "families": families or {},
+                "figures": info["figures"],
+            },
+        )
         session.commit()
     return report, problems
 
@@ -628,17 +676,29 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("command", choices=["dry-run", "apply", "verify", "reverse"])
     parser.add_argument("--no-continuity", action="append", default=[], metavar="NAME")
+    parser.add_argument(
+        "--family", action="append", default=[], metavar="NAME=SUFFIX,..."
+    )
     parser.add_argument("--again", action="store_true")
     parser.add_argument("--json", metavar="PATH")
     args = parser.parse_args(argv)
     with app.app_context():
         session = db.session
         skip = set(args.no_continuity)
+        families = {}
+        for spec in args.family:
+            name, _sep, rest = spec.partition("=")
+            suffixes = [x.strip() for x in rest.split(",") if x.strip()]
+            if not name.strip() or not suffixes:
+                parser.error("--family wants NAME=SUFFIX,SUFFIX (got %r)" % spec)
+            families.setdefault(name.strip(), []).extend(suffixes)
         if args.command == "dry-run":
-            report, problems = do_transform(session, skip, commit=False)
+            report, problems = do_transform(
+                session, skip, commit=False, families=families
+            )
         elif args.command == "apply":
             report, problems = do_transform(
-                session, skip, commit=True, again=args.again
+                session, skip, commit=True, again=args.again, families=families
             )
         elif args.command == "verify":
             report, problems = do_verify(session)
