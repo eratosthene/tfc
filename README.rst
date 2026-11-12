@@ -152,6 +152,13 @@ finds the figures tagged with anything below it. A franchise cannot go under
 itself or one of its own descendants, a tree may be 8 levels deep at most, and
 a franchise that still has sub-franchises cannot be deleted.
 
+``flask set-franchise-parents FILE`` sets many parents at once from an indented
+list of franchise names (``-`` reads stdin), checking each one like the form does.
+It lists the changes and saves nothing unless ``--apply`` is given, and if
+anything is wrong it saves nothing at all. ``docs/proposals/franchise-hierarchy.txt``
+holds the agreed hierarchy; in Docker, feed it in with
+``docker compose -f docker/compose.yml exec -T tfc flask set-franchise-parents - < docs/proposals/franchise-hierarchy.txt``.
+
 Figures already tagged with every level by hand are not harmed. To tidy them
 after setting the parents, ``flask prune-franchises`` lists the tags that a
 lower tag on the same figure already covers, and changes nothing;
