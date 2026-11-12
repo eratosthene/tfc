@@ -25,3 +25,4 @@ app/static/uploads/
 docker/.env
 backups/
 .coverage
+/tfwiki-cache/

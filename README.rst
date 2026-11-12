@@ -113,6 +113,21 @@ its user, password and database come from ``SQLALCHEMY_DATABASE_URI`` in
 	docker compose -f docker/compose.dev.yml --profile db up --build
 	docker compose -f docker/compose.dev.yml exec tfc flask fab create-admin
 
+TFWiki fetcher and parser
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``app/tfwiki`` reads figure sections from tfwiki.net (issue 53); nothing in the app
+uses it yet. ``fetcher.py`` gets a page's wikitext through the MediaWiki API,
+``parser.py`` turns a figure's section into suggestions (name, faction, year,
+accessories, tooling, ancestors, packed-with, first picture), and ``figure.py`` ties
+them together from a pasted link. tfwiki.net's robots.txt disallows automated clients,
+so fetching is **off** unless ``TFWIKI_ENABLED`` is set in ``config.py`` (see
+``config.py.tpl``). When on it makes one request at a time, at least two seconds apart
+(shared by all workers through files in ``TFWIKI_CACHE_DIR``), stops for an hour after
+a 429 or 503, sends a User-Agent naming this repository, and caches every page by
+title, so a page is fetched once. Cached pages are readable with fetching off. The
+recorded pages the tests use are in ``tests/fixtures/tfwiki`` (see its README).
+
 Tests
 ~~~~~
 

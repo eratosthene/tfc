@@ -61,3 +61,14 @@ IMG_UPLOAD_FOLDER = UPLOAD_FOLDER
 IMG_UPLOAD_URL = "/static/uploads/"
 # Each model sets its own full and thumbnail sizes; IMG_SIZE is the fallback.
 IMG_SIZE = (2000, 2000, False)
+
+# ---------------------------------------------------------------------------
+# tfwiki.net (used by the Add Figure from TFWiki flow)
+# ---------------------------------------------------------------------------
+# tfwiki.net's robots.txt disallows automated clients, so the app fetches
+# nothing from it unless you turn this on. When on, it makes at most one
+# request every two seconds, stops for an hour after a 429 or 503, and caches
+# every page in TFWIKI_CACHE_DIR so a page is fetched once. Cached pages are
+# readable even when this is off.
+TFWIKI_ENABLED = False
+TFWIKI_CACHE_DIR = os.path.join(basedir, "tfwiki-cache")
