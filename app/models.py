@@ -1,7 +1,17 @@
 from flask import url_for
 from flask_appbuilder.models.mixins import ImageColumn
 from markupsafe import Markup, escape
-from sqlalchemy import Column, ForeignKey, Integer, String, Table, event
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
+    event,
+    func,
+)
 from sqlalchemy.orm import relationship
 
 from app import db
@@ -63,6 +73,9 @@ class Franchise(Legacy, Named, db.Model):
     )
     start_year = Column(Integer, nullable=False)
     end_year = Column(Integer)
+    # The wider franchise this one belongs to (Legacy United -> Generations).
+    # Not used by the views yet; see docs/proposals/data-model.md.
+    parent_id = Column(Integer, ForeignKey("franchise.id"))
 
     def image_show(self):
         if self.image:
@@ -255,6 +268,59 @@ class TFWikiLink(Legacy, db.Model):
             return Markup("")
 
 
+# The structures of docs/proposals/data-model.md. They sit next to the old ones
+# (tf_wiki_link, accessory, ...) until the cutover and are filled in by
+# scripts/migrate_data_model.py; the views do not read them yet.
+class Continuity(Named, db.Model):
+    __tablename__ = "continuity"
+    __table_args__ = TABLE_ARGS
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False, unique=True)
+    link = Column(String(500))
+
+
+class Character(Named, db.Model):
+    """A character in one continuity, which is what a wiki page is about."""
+
+    __tablename__ = "character"
+    __table_args__ = TABLE_ARGS
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False)
+    link = Column(String(500), nullable=False, unique=True)
+    continuity_id = Column(Integer, ForeignKey("continuity.id"))
+
+    continuity = relationship("Continuity")
+
+
+class FranchiseAlias(db.Model):
+    """A wiki toyline heading or anchor that stands for one of our franchises."""
+
+    __tablename__ = "franchise_alias"
+    __table_args__ = TABLE_ARGS
+    id = Column(Integer, primary_key=True)
+    franchise_id = Column(
+        Integer, ForeignKey("franchise.id", ondelete="CASCADE"), nullable=False
+    )
+    alias = Column(String(255), nullable=False, unique=True)
+
+    franchise = relationship("Franchise")
+
+
+class DataModelMigration(db.Model):
+    """What scripts/migrate_data_model.py has done, one row per step.
+
+    The revision that finally drops the old tables refuses to run unless the
+    ``verify`` row is there.
+    """
+
+    __tablename__ = "data_model_migration"
+    __table_args__ = TABLE_ARGS
+    id = Column(Integer, primary_key=True)
+    step = Column(String(60), nullable=False, unique=True)
+    recorded_at = Column(DateTime, nullable=False, server_default=func.now())
+    detail = Column(Text)
+
+
 # Many-to-many tables between a figure and the things it lists. Their
 # ``position`` column keeps the order the user picked, which the display
 # relies on (franchise order, packed-with order, ...).
@@ -309,7 +375,14 @@ class Figure(Legacy, Named, db.Model):
     takara_id = Column(String(255))
     condition = Column(String(255))
     quantity = Column(Integer, default=1)
+    # The new structures, filled by scripts/migrate_data_model.py and not read by
+    # the views yet. They take their final names (link, character_id and
+    # accessories) when the old columns go.
+    link = Column(String(500))
+    character_id_new = Column(Integer, ForeignKey("character.id"))
+    accessories_text = Column(Text)
 
+    character_new = relationship("Character")
     figure_link = relationship("TFWikiLink", foreign_keys=[figure_link_id])
     character = relationship("TFWikiLink", foreign_keys=[character_id])
     faction = relationship("Faction")
@@ -410,6 +483,22 @@ class Figure(Legacy, Named, db.Model):
 
     def packed_with_show(self):
         return self.link_list_show(self.packed_with)
+
+
+class FigureReference(db.Model):
+    """An ancestor or pack-mate of a figure, as the name and wiki link it had."""
+
+    __tablename__ = "figure_reference"
+    __table_args__ = TABLE_ARGS
+    KINDS = ("ancestor", "packed_with")
+    id = Column(Integer, primary_key=True)
+    figure_id = Column(
+        Integer, ForeignKey("figure.id", ondelete="CASCADE"), nullable=False
+    )
+    kind = Column(String(20), nullable=False)
+    position = Column(Integer, nullable=False, default=0, server_default="0")
+    name = Column(String(255), nullable=False)
+    link = Column(String(500), nullable=False)
 
 
 @event.listens_for(db.session, "after_flush")

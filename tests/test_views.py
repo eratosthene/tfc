@@ -295,3 +295,15 @@ def test_list_views_with_images_show_picture_links(auth_client):
         as_text=True
     )
     assert "/factionmodelview/faction_img/%s" % faction.id in html
+
+
+def test_the_new_data_model_columns_stay_out_of_the_forms():
+    """They are filled by scripts/migrate_data_model.py until the cutover."""
+    from app.views import FigureModelView, FranchiseModelView
+
+    for view, new in (
+        (FigureModelView, {"link", "accessories_text", "character_new"}),
+        (FranchiseModelView, {"parent", "parent_id"}),
+    ):
+        for columns in (view.add_columns, view.edit_columns, view.search_columns):
+            assert not new & set(columns)

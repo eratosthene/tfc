@@ -50,6 +50,11 @@ class FranchiseModelView(ModelView):
         "figure_list",
     ]
     show_columns = ["image_show", "name", "start_year", "end_year", "link_show"]
+    # Pinned so the new parent_id column does not reach the forms before the
+    # nested-franchise work uses it.
+    _columns = ["name", "link", "image", "start_year", "end_year", "legacy_id"]
+    add_columns = edit_columns = _columns
+    search_columns = ["name", "link", "start_year", "end_year", "legacy_id"]
 
     @expose("/franchise_img/<pk>")
     @has_access
@@ -162,6 +167,31 @@ class FigureModelView(ModelView):
         "condition",
         "quantity",
     ]
+    # Pinned so the columns for the new data model (link, accessories_text,
+    # character_new) stay out of the forms until the cutover switches to them.
+    _columns = [
+        "figure_link",
+        "character",
+        "faction",
+        "franchise",
+        "tooling",
+        "history",
+        "packed_with",
+        "gestalt_of",
+        "accessories",
+        "categories",
+        "name",
+        "release_year",
+        "image",
+        "exclusive_to",
+        "hasbro_id",
+        "takara_id",
+        "condition",
+        "quantity",
+        "legacy_id",
+    ]
+    add_columns = edit_columns = _columns
+    search_columns = [c for c in _columns if c != "image"]
 
     @expose("/figure_img/<pk>")
     @has_access
