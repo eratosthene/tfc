@@ -7,12 +7,13 @@ import pytest
 
 from app import db
 from app.models import (
-    Accessory,
     Category,
+    Character,
+    Continuity,
+    ContinuityFamily,
     Faction,
     Figure,
     Franchise,
-    TFWikiLink,
     Tooling,
 )
 
@@ -21,9 +22,10 @@ VIEWS = {
     "franchisemodelview": "Fra",
     "factionmodelview": "Fac",
     "toolingmodelview": "Too",
-    "accessorymodelview": "Acc",
     "categorymodelview": "Cat",
-    "tfwikilinkmodelview": "Wik",
+    "charactermodelview": "Cha",
+    "continuitymodelview": "Con",
+    "continuityfamilymodelview": "Fam",
 }
 
 
@@ -40,12 +42,13 @@ def _insert_out_of_order():
     for model, prefix in (
         (Faction, "Fac"),
         (Tooling, "Too"),
-        (Accessory, "Acc"),
         (Category, "Cat"),
+        (Continuity, "Con"),
+        (ContinuityFamily, "Fam"),
     ):
         db.session.add_all(model(name=n) for n in _names(prefix))
-    links = [TFWikiLink(name=n, link="https://x.test/" + n) for n in _names("Wik")]
-    db.session.add_all(links)
+    characters = [Character(name=n, link="https://x.test/" + n) for n in _names("Cha")]
+    db.session.add_all(characters)
     faction = Faction(name="Zeta faction")
     franchise = Franchise(name="Zeta franchise", start_year=3000)
     db.session.add_all([faction, franchise])
@@ -54,7 +57,7 @@ def _insert_out_of_order():
             Figure(
                 name=n,
                 release_year=1984,
-                character=links[0],
+                character_new=characters[0],
                 faction=faction,
                 franchise=[franchise],
             )
@@ -84,9 +87,10 @@ def unsorted(auth_client):
         ("franchisemodelview", ["Fra C", "Fra A", "Fra B"]),  # 1984, 1990, 2010
         ("factionmodelview", ["Fac A", "Fac B", "Fac C"]),
         ("toolingmodelview", ["Too A", "Too B", "Too C"]),
-        ("accessorymodelview", ["Acc A", "Acc B", "Acc C"]),
         ("categorymodelview", ["Cat A", "Cat B", "Cat C"]),
-        ("tfwikilinkmodelview", ["Wik A", "Wik B", "Wik C"]),
+        ("charactermodelview", ["Cha A", "Cha B", "Cha C"]),
+        ("continuitymodelview", ["Con A", "Con B", "Con C"]),
+        ("continuityfamilymodelview", ["Fam A", "Fam B", "Fam C"]),
     ],
 )
 def test_default_order(unsorted, view, expected):

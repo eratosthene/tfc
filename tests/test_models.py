@@ -7,8 +7,12 @@ from app import app as flask_app, db
 from app.models import (
     Accessory,
     Category,
+    Character,
+    Continuity,
+    ContinuityFamily,
     Faction,
     Figure,
+    FigureReference,
     Franchise,
     TFWikiLink,
     Tooling,
@@ -157,16 +161,25 @@ def test_faction_show():
     )
 
 
-def test_link_show_and_wrappers():
-    char = TFWikiLink(name="Prime", link=WIKI + "Prime_(G1)")
-    fig = Figure(name="F", character=char, figure_link=None)
-    assert fig.link_show(None) == ""
-    assert fig.character_show() == (
-        '<a href="%sPrime_(G1)">Prime (G1) [character]</a>' % WIKI
+def test_character_and_figure_link_show():
+    fig = Figure(name="F")
+    assert fig.character_show() == "" and fig.figure_link_show() == ""
+    char = Character(name="Prime", link=WIKI + "Prime_(G1)")
+    fig.character_new = char
+    assert fig.character_show() == '<a href="%sPrime_(G1)">Prime</a>' % WIKI
+    char.continuity = Continuity(name="G1")
+    assert fig.character_show() == '<a href="%sPrime_(G1)">Prime (G1)</a>' % WIKI
+    fig.link = WIKI + "Prime_(G1)/toys#Toy"
+    assert fig.figure_link_show() == (
+        '<a href="{0}Prime_(G1)/toys#Toy">{0}Prime_(G1)/toys#Toy</a>'.format(WIKI)
     )
-    assert fig.figure_link_show() == ""
-    fig.figure_link = TFWikiLink(name="P", link=WIKI + "P#T")
-    assert "[figure]" in fig.figure_link_show()
+
+
+def test_link_show_of_continuities_and_families():
+    for obj in (Continuity(name="C"), ContinuityFamily(name="F")):
+        assert obj.link_show() == ""
+        obj.link = "https://e.com/?a=1&b=<2>"
+        assert 'href="https://e.com/?a=1&amp;b=&lt;2&gt;"' in obj.link_show()
 
 
 def test_link_list_show():
@@ -183,10 +196,22 @@ def test_link_list_show():
 
 
 def test_history_and_packed_with_show():
-    t = TFWikiLink(name="Prime", link=WIKI + "Prime#Toy")
-    fig = Figure(name="F", history=[t], packed_with=[t])
-    for html in (fig.history_show(), fig.packed_with_show()):
-        assert WIKI + "Prime#Toy" in html and "Prime @ Toy [figure]" in html
+    fig = Figure(
+        name="F",
+        references=[
+            FigureReference(kind="ancestor", name="Old <1>", link=WIKI + "Old#A"),
+            FigureReference(kind="packed_with", name="Mate", link=WIKI + "Mate"),
+        ],
+    )
+    with flask_app.test_request_context():
+        history, packed = fig.history_show(), fig.packed_with_show()
+        empty = Figure(name="F").history_show()
+    assert 'href="%sOld#A">Old &lt;1&gt;</a>' % WIKI in history
+    assert "Mate" not in history and "Old" not in packed
+    assert "_flt_0_ancestors=" in history and "Other figures" in history
+    assert 'href="%sMate">Mate</a>' % WIKI in packed
+    assert "Other figures" not in packed and "In collection" not in packed
+    assert "<tr>" not in empty
 
 
 def test_thumbgen_name_matches_views():

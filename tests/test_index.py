@@ -5,12 +5,11 @@ import pytest
 from app import db
 from app.index import MyIndexView, _by_assoc
 from app.models import (
-    Accessory,
     Category,
+    Character,
     Faction,
     Figure,
     Franchise,
-    TFWikiLink,
     Tooling,
     figure_franchise,
 )
@@ -24,14 +23,14 @@ def _add_known_data():
     unused_faction = Faction(name="Unused Faction")
     t1, t2 = Tooling(name="T1"), Tooling(name="T2")
     leader, scout = Category(name="Leader"), Category(name="Scout")
-    char = TFWikiLink(name="C", link="https://tfwiki.net/wiki/C")
-    db.session.add_all([unused_franchise, unused_faction, Accessory(name="A")])
+    char = Character(name="C", link="https://tfwiki.net/wiki/C")
+    db.session.add_all([unused_franchise, unused_faction])
 
     def fig(name, faction, franchises, tooling, cats):
         return Figure(
             name=name,
             release_year=1990,
-            character=char,
+            character_new=char,
             faction=faction,
             franchise=franchises,
             tooling=tooling,
@@ -111,3 +110,20 @@ def test_index_is_public(client, seed):
 def test_by_assoc_counts_each_figure_once(seed):
     rows = _by_assoc(Franchise, figure_franchise, "franchise", [Franchise.name])
     assert [(str(r["franchise"]), r["total"]) for r in rows] == [("Generation 1", 1)]
+
+
+def test_a_parent_franchise_counts_the_figures_below_it(auth_client, captured):
+    _add_known_data()
+    g1 = db.session.query(Franchise).filter_by(name="G1").one()
+    bw = db.session.query(Franchise).filter_by(name="Beast Wars").one()
+    parent = Franchise(name="Transformers", start_year=1983)
+    db.session.add(parent)
+    db.session.flush()
+    g1.parent = bw.parent = parent
+    db.session.commit()
+    auth_client.get("/")
+    totals = {str(r["franchise"]): r["total"] for r in captured["by_franchise"]}
+    # Two (One, Two) are in G1 and two (Two, Three) in Beast Wars; Two is in both.
+    assert totals["Transformers"] == 3
+    assert totals["G1"] == 2 and totals["Beast Wars"] == 2
+    assert [str(r["franchise"]) for r in captured["by_franchise"]][0] == "Transformers"

@@ -141,6 +141,37 @@ CI also requires 100% line coverage of ``app/`` (``--cov=app --cov-fail-under=10
 see ``.coveragerc`` for what is not measured: ``migrations/``, ``scripts/`` and
 the tests). Check it locally with ``python -m pytest --cov=app --cov-report=term-missing``.
 
+Cutover runbook
+~~~~~~~~~~~~~~~
+
+What changes: Figures use *Character* (with its continuity and continuity
+family), a *Link to Figure*, *Accessories* as comma-separated text, and *Model
+History* / *Packed With* as one ``Name | link`` per line. The TFWikiLinks and
+Accessories menus are gone; Characters, Continuities and Continuity Families
+replace them. The Figure list can be filtered by character, continuity,
+continuity family, ancestor link and accessory text.
+
+1. Stop editing in the app, then ``scripts/backup.sh``. Check both files exist.
+2. If anything was edited since the last ``migrate_data_model.py apply``, copy it
+   over again, with the same flags, and check it (a hand-set family is kept)::
+
+	docker compose -f docker/compose.yml exec tfc python scripts/migrate_data_model.py apply --again ...
+	docker compose -f docker/compose.yml exec tfc python scripts/migrate_data_model.py verify
+
+3. Deploy the new version. The container start runs ``flask db upgrade``
+   (``d4f6b8c0e235``: the old character column may be empty).
+4. Click through a few figures: one with ancestors and pack-mates (the
+   "In collection" and "Other figures from this ancestor" links), Characters,
+   Continuities, Continuity Families, and the franchise and continuity filters.
+5. To go back, before anyone edits in the new version: redeploy the previous
+   image, which reads the untouched old tables. If figures were edited in the new
+   version, run ``migrate_data_model.py reverse`` first (from the new image), then
+   redeploy the old one; or restore the backup.
+6. A few weeks later, the contract PR drops the old tables. Its revision refuses to
+   run until ``verify`` has passed.
+
+The permissions of the removed views stay in the database harmlessly.
+
 Nested franchises
 ~~~~~~~~~~~~~~~~~
 
@@ -168,10 +199,10 @@ Moving to the new data model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``docs/proposals/data-model.md`` describes the new model (characters,
-continuities, per-figure references, accessories as text). It arrives in steps.
-This one only *adds*: the ``b2d4f6a8c013`` revision creates the new tables and
-columns next to the old ones, and runs on deploy like any revision. The app
-does not read them yet, so nothing looks different.
+continuities, per-figure references, accessories as text). The revisions only
+*add* tables and columns next to the old ones, and run on deploy like any
+revision. Since the cutover the app reads and writes the new structures; the old
+tables and columns stay, untouched, for about four weeks, until the contract PR.
 
 ``scripts/migrate_data_model.py`` fills them from the old tables. It never
 deletes or changes the old tables. **Take a backup first** (``scripts/backup.sh``),

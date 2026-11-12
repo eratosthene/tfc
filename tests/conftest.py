@@ -25,13 +25,15 @@ assert_test_database(_config.SQLALCHEMY_DATABASE_URI)
 
 from app import app as flask_app, appbuilder, db  # noqa: E402
 from app.models import (  # noqa: E402
+    Category,
+    Character,
+    Continuity,
+    ContinuityFamily,
     Faction,
     Figure,
+    FigureReference,
     Franchise,
     Tooling,
-    Category,
-    Accessory,
-    TFWikiLink,
 )
 
 TEST_USER = "tester"
@@ -102,24 +104,37 @@ def seed():
     faction = Faction(name="Autobot")
     tooling = Tooling(name="Prime tooling")
     category = Category(name="Leader")
-    accessory = Accessory(name="Blaster")
-    character = TFWikiLink(
-        name="Optimus Prime", link="https://tfwiki.net/wiki/Optimus_Prime"
-    )
-    figure_link = TFWikiLink(
+    family = ContinuityFamily(name="Generation 1 family")
+    continuity = Continuity(name="G1", family=family)
+    character = Character(
         name="Optimus Prime",
-        link="https://tfwiki.net/wiki/Optimus_Prime_(G1)#Generation_1",
+        link="https://tfwiki.net/wiki/Optimus_Prime_(G1)",
+        continuity=continuity,
     )
     figure = Figure(
         name="Optimus Prime",
         release_year=1984,
         franchise=[franchise],
-        character=character,
-        figure_link=figure_link,
+        character_new=character,
+        link="https://tfwiki.net/wiki/Optimus_Prime_(G1)#Generation_1",
         tooling=[tooling],
         faction=faction,
         categories=[category],
-        accessories=[accessory],
+        accessories_text="Blaster, Axe",
+        references=[
+            FigureReference(
+                kind="ancestor",
+                position=0,
+                name="Diaclone Convoy",
+                link="https://tfwiki.net/wiki/Diaclone_Convoy",
+            ),
+            FigureReference(
+                kind="packed_with",
+                position=0,
+                name="Roller",
+                link="https://tfwiki.net/wiki/Roller",
+            ),
+        ],
     )
     db.session.add(figure)
     db.session.commit()
@@ -132,9 +147,9 @@ def seed():
             "faction": faction,
             "tooling": tooling,
             "category": category,
-            "accessory": accessory,
             "character": character,
-            "figure_link": figure_link,
+            "continuity": continuity,
+            "family": family,
             "figure": figure,
         }.items()
     }

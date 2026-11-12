@@ -1,20 +1,25 @@
 import os
 
-from flask import abort, render_template, send_from_directory, current_app
+from flask import abort, flash, render_template, send_from_directory, current_app
 from flask_appbuilder import ModelView, expose, has_access, permission_name
 from flask_appbuilder.filemanager import thumbgen_filename
 from flask_appbuilder.models.sqla.interface import SQLAInterface
+from sqlalchemy import select
+from wtforms import TextAreaField
 from app import app, appbuilder
 from app.franchises import FigureInterface, check_parent
 from app.models import (
+    Character,
+    Continuity,
+    ContinuityFamily,
     Franchise,
     Faction,
     Figure,
+    FigureReference,
     Tooling,
-    Accessory,
     Category,
-    TFWikiLink,
 )
+from app.references import format_references, parse_references
 
 
 def send_image(item, thumbnail=False):
@@ -141,14 +146,6 @@ class ToolingModelView(ModelView):
     show_columns = ["name"]
 
 
-class AccessoryModelView(ModelView):
-    datamodel = SQLAInterface(Accessory)
-    base_order = ("name", "asc")
-    label_columns = {"figure_list": "Figures"}
-    list_columns = ["name", "figure_list"]
-    show_columns = ["name"]
-
-
 class CategoryModelView(ModelView):
     datamodel = SQLAInterface(Category)
     base_order = ("name", "asc")
@@ -157,12 +154,61 @@ class CategoryModelView(ModelView):
     show_columns = ["name"]
 
 
-class TFWikiLinkModelView(ModelView):
-    datamodel = SQLAInterface(TFWikiLink)
+class CharacterModelView(ModelView):
+    datamodel = SQLAInterface(Character)
     base_order = ("name", "asc")
-    label_columns = {"figure_list": "Figures", "history_list": "History"}
-    list_columns = ["name", "link_type", "link", "figure_list", "history_list"]
-    show_columns = ["name", "link"]
+    label_columns = {"link_show": "Link", "figure_list": "Figures"}
+    list_columns = ["name", "continuity", "link_show", "figure_list"]
+    show_columns = ["name", "continuity", "link_show"]
+    add_columns = edit_columns = ["name", "link", "continuity"]
+    search_columns = ["name", "link", "continuity"]
+
+
+class ContinuityModelView(ModelView):
+    datamodel = SQLAInterface(Continuity)
+    base_order = ("name", "asc")
+    label_columns = {
+        "link_show": "Link",
+        "character_list": "Characters",
+        "figure_list": "Figures",
+    }
+    list_columns = ["name", "family", "link_show", "character_list", "figure_list"]
+    show_columns = ["name", "family", "link_show"]
+    add_columns = edit_columns = ["name", "family", "link"]
+    search_columns = ["name", "family", "link"]
+
+
+class ContinuityFamilyModelView(ModelView):
+    datamodel = SQLAInterface(ContinuityFamily)
+    base_order = ("name", "asc")
+    label_columns = {
+        "link_show": "Link",
+        "continuity_list": "Continuities",
+        "figure_list": "Figures",
+    }
+    list_columns = ["name", "link_show", "continuity_list", "figure_list"]
+    show_columns = ["name", "link_show"]
+    add_columns = edit_columns = ["name", "link"]
+    search_columns = ["name", "link"]
+
+
+REFERENCE_FIELDS = (
+    ("ancestor", "history_text"),
+    ("packed_with", "packed_with_text"),
+)
+
+
+def reference_fields():
+    return {
+        "history_text": TextAreaField(
+            "Model History",
+            description="One ancestor per line:  Name | https://tfwiki.net/wiki/...",
+        ),
+        "packed_with_text": TextAreaField(
+            "Packed With",
+            description="One per line:  Name | https://tfwiki.net/wiki/...",
+        ),
+    }
 
 
 class FigureModelView(ModelView):
@@ -172,11 +218,17 @@ class FigureModelView(ModelView):
         "image_thumb_show": "Picture",
         "image_show": "Picture",
         "character_show": "Character",
+        "character_new": "Character",
         "franchise_show": "Franchise(s)",
         "faction_show": "Faction",
         "figure_link_show": "Link to Figure",
+        "link": "Link to Figure",
         "history_show": "Model History",
         "packed_with_show": "Packed With",
+        "accessories_text": "Accessories",
+        "ancestors": "Has ancestor (link)",
+        "continuity": "Continuity",
+        "family": "Continuity family",
     }
     list_columns = [
         "name",
@@ -186,7 +238,6 @@ class FigureModelView(ModelView):
         "release_year",
         "image_thumb_show",
     ]
-    # list_widget = ListBlock
     show_columns = [
         "name",
         "image_show",
@@ -202,36 +253,88 @@ class FigureModelView(ModelView):
         "hasbro_id",
         "takara_id",
         "gestalt_of",
-        "accessories",
+        "accessories_text",
         "categories",
         "condition",
         "quantity",
     ]
-    # Pinned so the columns for the new data model (link, accessories_text,
-    # character_new) stay out of the forms until the cutover switches to them.
+    # Pinned: the form shows the new structures. The old ones (figure_link,
+    # character, history, packed_with, accessories) stay in the database, unused,
+    # until the contract PR removes them.
     _columns = [
-        "figure_link",
-        "character",
+        "name",
+        "character_new",
         "faction",
         "franchise",
         "tooling",
-        "history",
-        "packed_with",
-        "gestalt_of",
-        "accessories",
-        "categories",
-        "name",
         "release_year",
         "image",
+        "link",
         "exclusive_to",
         "hasbro_id",
         "takara_id",
+        "accessories_text",
+        "categories",
+        "gestalt_of",
         "condition",
         "quantity",
         "legacy_id",
     ]
-    add_columns = edit_columns = _columns
-    search_columns = [c for c in _columns if c != "image"]
+    # The two text boxes are form-only fields, so they are named here as well.
+    add_columns = edit_columns = _columns + [f for _kind, f in REFERENCE_FIELDS]
+    search_columns = [c for c in _columns if c != "image"] + [
+        "continuity",
+        "family",
+        "ancestors",
+    ]
+    add_form_extra_fields = edit_form_extra_fields = reference_fields()
+
+    def prefill_form(self, form, pk):
+        figure = self.datamodel.get(pk)
+        for kind, field in REFERENCE_FIELDS:
+            getattr(form, field).data = format_references(
+                [r for r in figure.references if r.kind == kind]
+            )
+
+    def _check(self, item):
+        """Read the form's extra fields onto the item, or refuse with a message."""
+        try:
+            if item.character_new is None:
+                raise ValueError("Pick a character.")
+            references = []
+            for kind, field in REFERENCE_FIELDS:
+                for position, (name, link) in enumerate(
+                    parse_references(getattr(item, field, ""))
+                ):
+                    references.append(
+                        FigureReference(
+                            kind=kind, position=position, name=name, link=link
+                        )
+                    )
+        except ValueError:
+            self.datamodel.session.rollback()
+            raise
+        item.references = references
+        # An empty box means "none", as the migration script stores it.
+        item.link = (item.link or "").strip() or None
+        item.accessories_text = (item.accessories_text or "").strip() or None
+        if item.link and self.datamodel.session.scalar(
+            select(Figure.id)
+            .where(Figure.link == item.link, Figure.id != (item.id or 0))
+            .limit(1)
+        ):
+            flash("Another figure already has this link (saved anyway).", "warning")
+        if item.gestalt_of and not any(c.name == "Combiner" for c in item.categories):
+            flash(
+                "Gestalt components are set but the Combiner category is not.",
+                "warning",
+            )
+
+    def pre_add(self, item):
+        self._check(item)
+
+    def pre_update(self, item):
+        self._check(item)
 
     @expose("/figure_img/<pk>")
     @has_access
@@ -250,9 +353,10 @@ appbuilder.add_view(FigureModelView, "Figures")
 appbuilder.add_view(FranchiseModelView, "Franchises")
 appbuilder.add_view(FactionModelView, "Factions")
 appbuilder.add_view(ToolingModelView, "Toolings")
-appbuilder.add_view(AccessoryModelView, "Accessories")
 appbuilder.add_view(CategoryModelView, "Categories")
-appbuilder.add_view(TFWikiLinkModelView, "TFWikiLinks")
+appbuilder.add_view(CharacterModelView, "Characters")
+appbuilder.add_view(ContinuityModelView, "Continuities")
+appbuilder.add_view(ContinuityFamilyModelView, "Continuity Families")
 
 """
     Application wide 404 error handler

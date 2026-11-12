@@ -9,12 +9,13 @@ from PIL import Image
 
 from app import app as flask_app, appbuilder, db
 from app.models import (
-    Accessory,
     Category,
+    Character,
+    Continuity,
+    ContinuityFamily,
     Faction,
     Figure,
     Franchise,
-    TFWikiLink,
     Tooling,
 )
 
@@ -30,7 +31,7 @@ CASES = [
         lambda s: {
             "name": "Megatron",
             "release_year": "1984",
-            "character": str(s["character"].id),
+            "character_new": str(s["character"].id),
             "faction": str(s["faction"].id),
             "franchise": [str(s["franchise"].id)],
             "tooling": [str(s["tooling"].id)],
@@ -45,13 +46,19 @@ CASES = [
     ),
     ("factionmodelview", Faction, "faction", lambda s: {"name": "Decepticon"}),
     ("toolingmodelview", Tooling, "tooling", lambda s: {"name": "Mega tooling"}),
-    ("accessorymodelview", Accessory, "accessory", lambda s: {"name": "Sword"}),
     ("categorymodelview", Category, "category", lambda s: {"name": "Scout"}),
     (
-        "tfwikilinkmodelview",
-        TFWikiLink,
+        "charactermodelview",
+        Character,
         "character",
         lambda s: {"name": "Megatron", "link": "https://tfwiki.net/wiki/Megatron"},
+    ),
+    ("continuitymodelview", Continuity, "continuity", lambda s: {"name": "Animated"}),
+    (
+        "continuityfamilymodelview",
+        ContinuityFamily,
+        "family",
+        lambda s: {"name": "Aligned"},
     ),
 ]
 IDS = [c[0] for c in CASES]
@@ -189,25 +196,41 @@ def test_figure_show_renders_helpers(auth_client, seed):
     html = auth_client.get("/figuremodelview/show/%s" % seed["figure"].id).get_data(
         as_text=True
     )
-    assert "https://tfwiki.net/wiki/Optimus_Prime" in html
-    assert "Generation_1" in html or "Generation 1" in html
-    assert "Prime tooling" in html and "Blaster" in html
+    assert "https://tfwiki.net/wiki/Optimus_Prime_(G1)" in html
+    assert "Optimus_Prime_(G1)#Generation_1" in html
+    assert "Prime tooling" in html and "Blaster, Axe" in html
+    assert "Optimus Prime (G1)" in html  # the character, with its continuity
+    assert "Diaclone Convoy" in html and "Roller" in html
 
 
 def test_figure_with_no_optional_fields_shows(auth_client, seed):
     fig = db.session.get(Figure, seed["figure"].id)
     other = Figure(
-        name="Bare", release_year=2000, character=fig.character, faction=fig.faction
+        name="Bare",
+        release_year=2000,
+        character_new=fig.character_new,
+        faction=fig.faction,
     )
     db.session.add(other)
     db.session.commit()
     assert auth_client.get("/figuremodelview/show/%s" % other.id).status_code == 200
 
 
-def test_tfwikilink_list_shows_link_type_and_search_links(auth_client, seed):
-    html = auth_client.get("/tfwikilinkmodelview/list/").get_data(as_text=True)
-    assert "Character" in html and "Figure (Generation 1)" in html
-    assert "Search for this Character" in html and "Search for this Ancestor" in html
+def test_the_old_link_and_accessory_views_are_gone(auth_client, seed):
+    for view in ("tfwikilinkmodelview", "accessorymodelview"):
+        assert auth_client.get("/%s/list/" % view).status_code == 404
+
+
+def test_the_list_pages_link_to_their_figures(auth_client, seed):
+    for view, text in (
+        ("charactermodelview", "_flt_0_character_new=%s" % seed["character"].id),
+        ("continuitymodelview", "_flt_0_continuity=%s" % seed["continuity"].id),
+        ("continuityfamilymodelview", "_flt_0_family=%s" % seed["family"].id),
+    ):
+        html = auth_client.get("/%s/list/" % view).get_data(as_text=True)
+        assert text in html and "Search Figures" in html
+    html = auth_client.get("/continuitymodelview/list/").get_data(as_text=True)
+    assert "Generation 1 family" in html and "_flt_0_continuity=" in html
 
 
 # Image views ---------------------------------------------------------------
@@ -297,13 +320,18 @@ def test_list_views_with_images_show_picture_links(auth_client):
     assert "/factionmodelview/faction_img/%s" % faction.id in html
 
 
-def test_the_new_data_model_columns_stay_out_of_the_forms():
-    """They are filled by scripts/migrate_data_model.py until the cutover."""
+def test_the_forms_use_the_new_structures_and_not_the_old():
     from app.views import FigureModelView, FranchiseModelView
 
-    for view, new in (
-        (FigureModelView, {"link", "accessories_text", "character_new"}),
-        (FranchiseModelView, {"parent_id"}),
+    old = {"figure_link", "character", "history", "packed_with", "accessories"}
+    new = {"link", "accessories_text", "character_new"}
+    for columns in (
+        FigureModelView.add_columns,
+        FigureModelView.edit_columns,
+        FigureModelView.search_columns,
     ):
-        for columns in (view.add_columns, view.edit_columns, view.search_columns):
-            assert not new & set(columns)
+        assert not old & set(columns) and new <= set(columns)
+    assert {"history_text", "packed_with_text"} <= set(FigureModelView.add_columns)
+    assert "history_text" not in FigureModelView.search_columns
+    for columns in (FranchiseModelView.add_columns, FranchiseModelView.edit_columns):
+        assert "parent" in columns and "parent_id" not in columns

@@ -1,10 +1,18 @@
 import io
 import os
 
+import pytest
 from PIL import Image
 
 from app import app as flask_app, db
-from app.models import Faction, Figure, Franchise, Tooling
+from app.models import (
+    Category,
+    Faction,
+    Figure,
+    FigureReference,
+    Franchise,
+    Tooling,
+)
 
 
 def _png(color="red", size=(400, 300)):
@@ -36,23 +44,40 @@ def test_list_order_is_kept(seed):
     ]
 
 
-def test_gestalt_of_and_packed_with(seed):
-    q = db.session.query
-    fig = q(Figure).get(seed["figure"].id)
+def test_gestalt_of_and_references(seed):
+    fig = db.session.get(Figure, seed["figure"].id)
     other = Figure(
         name="Gestalt",
         release_year=1985,
-        character=fig.character,
+        character_new=fig.character_new,
         faction=fig.faction,
         gestalt_of=[fig],
-        packed_with=[fig.figure_link, fig.character],
+        references=[
+            FigureReference(
+                kind="packed_with", position=1, name="B", link="https://x/b"
+            ),
+            FigureReference(
+                kind="packed_with", position=0, name="A", link="https://x/a"
+            ),
+            FigureReference(
+                kind="ancestor", position=0, name="Old", link="https://x/o"
+            ),
+        ],
     )
     db.session.add(other)
     db.session.commit()
     db.session.expire_all()
     other = db.session.get(Figure, other.id)
     assert [f.name for f in other.gestalt_of] == ["Optimus Prime"]
-    assert [str(x) for x in other.packed_with][0].endswith("[figure]")
+    assert [(r.kind, r.name) for r in other.references] == [
+        ("ancestor", "Old"),
+        ("packed_with", "A"),
+        ("packed_with", "B"),
+    ]
+    assert [r.name for r in other.ancestors] == ["Old"]
+    db.session.delete(other)
+    db.session.commit()
+    assert db.session.query(FigureReference).count() == 2  # the seed figure's own
 
 
 def test_index_counts_include_zero(auth_client, seed):
@@ -109,36 +134,209 @@ def test_add_edit_delete_figure(auth_client, seed):
     data = {
         "name": "Megatron",
         "release_year": "1984",
-        "character": str(seed["character"].id),
+        "character_new": str(seed["character"].id),
         "faction": str(seed["faction"].id),
         "franchise": [str(seed["franchise"].id)],
         "tooling": [str(seed["tooling"].id)],
         "quantity": "2",
+        "link": "https://tfwiki.net/wiki/Megatron_(G1)#Generation_1",
+        "accessories_text": "Fusion cannon, Stand",
+        "history_text": "Diaclone Megatron | https://tfwiki.net/wiki/Diaclone_Megatron\n",
+        "packed_with_text": "",
     }
     resp = auth_client.post("/figuremodelview/add", data=data, follow_redirects=True)
     assert resp.status_code == 200
     fig = db.session.query(Figure).filter_by(name="Megatron").one()
     assert fig.quantity == 2 and fig.faction.name == "Autobot"
+    assert fig.accessories_text == "Fusion cannon, Stand"
+    assert [(r.kind, r.name) for r in fig.references] == [
+        ("ancestor", "Diaclone Megatron")
+    ]
     fig_id = fig.id
+    # The edit form starts with the saved references in its text boxes.
+    html = auth_client.get("/figuremodelview/edit/%s" % fig_id).get_data(as_text=True)
+    assert "Diaclone Megatron | https://tfwiki.net/wiki/Diaclone_Megatron" in html
 
     data["name"] = "Megatron 2"
+    data["history_text"] = ""
+    data["packed_with_text"] = "Cannon | https://tfwiki.net/wiki/Cannon"
     resp = auth_client.post(
         "/figuremodelview/edit/%s" % fig_id, data=data, follow_redirects=True
     )
     assert resp.status_code == 200
     db.session.expire_all()
     assert db.session.get(Figure, fig_id).name == "Megatron 2"
+    assert [(r.kind, r.name) for r in db.session.get(Figure, fig_id).references] == [
+        ("packed_with", "Cannon")
+    ]
+    assert db.session.query(FigureReference).filter_by(figure_id=fig_id).count() == 1
     assert auth_client.get("/figuremodelview/show/%s" % fig_id).status_code == 200
 
     auth_client.get("/figuremodelview/delete/%s" % fig_id, follow_redirects=True)
     assert db.session.query(Figure).filter_by(name="Megatron 2").count() == 0
 
 
-def test_delete_link_in_use_is_refused(auth_client, seed):
+def figure_form(seed, **changes):
+    data = {
+        "name": "Form figure",
+        "release_year": "2020",
+        "character_new": str(seed["character"].id),
+        "faction": str(seed["faction"].id),
+        "quantity": "1",
+    }
+    data.update(changes)
+    return data
+
+
+def post_figure(auth_client, data, path="/figuremodelview/add"):
+    return auth_client.post(path, data=data, follow_redirects=True).get_data(
+        as_text=True
+    )
+
+
+def test_a_figure_needs_a_character(auth_client, seed):
+    data = figure_form(seed)
+    del data["character_new"]
+    assert "Pick a character." in post_figure(auth_client, data)
+    assert db.session.query(Figure).filter_by(name="Form figure").count() == 0
+
+
+@pytest.mark.parametrize(
+    "text, message",
+    [
+        ("no bar here", "Line 1: write it as  Name | link"),
+        ("Name |", "Line 1: write it as  Name | link"),
+        (
+            "ok | https://x/ok\n\nName | ftp://x",
+            "Line 3: the link must start with http",
+        ),
+        ("x" * 256 + " | https://x/a", "Line 1 is too long."),
+    ],
+)
+def test_a_bad_reference_line_is_refused_and_nothing_is_saved(
+    auth_client, seed, text, message
+):
+    html = post_figure(auth_client, figure_form(seed, history_text=text))
+    assert message in html
+    assert db.session.query(Figure).filter_by(name="Form figure").count() == 0
+
+
+def test_a_bad_reference_on_edit_keeps_the_saved_ones(auth_client, seed):
+    path = "/figuremodelview/edit/%s" % seed["figure"].id
+    html = post_figure(
+        auth_client, figure_form(seed, name="Optimus Prime", history_text="oops"), path
+    )
+    assert "write it as" in html
+    db.session.expire_all()
+    fig = db.session.get(Figure, seed["figure"].id)
+    assert sorted(r.name for r in fig.references) == ["Diaclone Convoy", "Roller"]
+
+
+def test_the_same_link_on_two_figures_saves_with_a_warning(auth_client, seed):
+    link = "https://tfwiki.net/wiki/Optimus_Prime_(G1)#Generation_1"
+    html = post_figure(auth_client, figure_form(seed, link=link))
+    assert "Another figure already has this link" in html
+    assert db.session.query(Figure).filter_by(link=link).count() == 2
+    # A figure keeps its own link without a warning.
+    path = "/figuremodelview/edit/%s" % seed["figure"].id
+    other = db.session.query(Figure).filter_by(name="Form figure").one()
+    assert "Another figure" not in post_figure(
+        auth_client,
+        figure_form(seed, name="Optimus Prime", link="https://x/unique"),
+        path,
+    )
+    assert other.link == link
+
+
+def test_gestalt_without_the_combiner_category_warns(auth_client, seed):
+    data = figure_form(seed, gestalt_of=[str(seed["figure"].id)])
+    assert "Combiner category is not" in post_figure(auth_client, data)
+    db.session.add(Category(name="Combiner"))
+    db.session.commit()
+    combiner = db.session.query(Category).filter_by(name="Combiner").one()
+    data = figure_form(
+        seed,
+        name="Second",
+        gestalt_of=[str(seed["figure"].id)],
+        categories=[str(combiner.id)],
+    )
+    assert "Combiner category is not" not in post_figure(auth_client, data)
+
+
+def test_delete_a_character_in_use_is_refused(auth_client, seed):
     resp = auth_client.get(
-        "/tfwikilinkmodelview/delete/%s" % seed["character"].id,
+        "/charactermodelview/delete/%s" % seed["character"].id,
         follow_redirects=True,
     )
     assert resp.status_code == 200
     db.session.expire_all()
     assert db.session.query(Figure).count() == 1
+
+
+def test_filters_by_character_continuity_family_and_ancestor(auth_client, seed):
+    other = db.session.query(Figure).filter_by(name="Optimus Prime").one()
+    db.session.add(
+        Figure(
+            name="Elsewhere",
+            release_year=2000,
+            faction=other.faction,
+            character_new=None,
+        )
+    )
+    db.session.commit()
+
+    def names(query):
+        html = auth_client.get("/figuremodelview/list/?" + query).get_data(as_text=True)
+        return {
+            n
+            for n in ("Optimus Prime", "Elsewhere")
+            if "/figuremodelview/show/%s"
+            % db.session.query(Figure).filter_by(name=n).one().id
+            in html
+        }
+
+    assert names("_flt_0_character_new=%s" % seed["character"].id) == {"Optimus Prime"}
+    assert names("_flt_0_continuity=%s" % seed["continuity"].id) == {"Optimus Prime"}
+    assert names("_flt_0_family=%s" % seed["family"].id) == {"Optimus Prime"}
+    assert names("_flt_0_ancestors=https://tfwiki.net/wiki/Diaclone_Convoy") == {
+        "Optimus Prime"
+    }
+    assert names("_flt_0_ancestors=https://tfwiki.net/wiki/Nobody") == set()
+    assert names(
+        "_flt_2_accessories_text=Axe"
+    )  # index 2 is "contains" == {"Optimus Prime"}
+
+
+def test_the_figure_page_marks_figures_in_the_collection(auth_client, seed):
+    db.session.add(
+        Figure(
+            name="The Ancestor",
+            release_year=1983,
+            faction=db.session.query(Faction).one(),
+            link="https://tfwiki.net/wiki/Diaclone_Convoy",
+        )
+    )
+    db.session.commit()
+    html = auth_client.get("/figuremodelview/show/%s" % seed["figure"].id).get_data(
+        as_text=True
+    )
+    assert "In collection" in html
+    assert "Other figures from this ancestor" in html
+    assert "_flt_0_ancestors=https://tfwiki.net/wiki/Diaclone_Convoy" in html
+    # Pack-mates are links and "In collection" only.
+    assert html.count("Other figures from this ancestor") == 1
+
+
+def test_empty_link_and_accessories_are_saved_as_none(auth_client, seed):
+    post_figure(auth_client, figure_form(seed, link="  ", accessories_text=" "))
+    fig = db.session.query(Figure).filter_by(name="Form figure").one()
+    assert fig.link is None and fig.accessories_text is None
+    path = "/figuremodelview/edit/%s" % fig.id
+    post_figure(
+        auth_client,
+        figure_form(seed, link=" https://x/y ", accessories_text=" A, B "),
+        path,
+    )
+    db.session.expire_all()
+    fig = db.session.get(Figure, fig.id)
+    assert fig.link == "https://x/y" and fig.accessories_text == "A, B"

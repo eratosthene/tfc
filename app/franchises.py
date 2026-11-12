@@ -14,7 +14,7 @@ from flask_appbuilder.models.sqla.interface import SQLAInterface
 from sqlalchemy import false, select
 
 from app import app, db
-from app.models import Figure, Franchise
+from app.models import Figure, FigureReference, Franchise
 
 # How many levels a tree may have (a franchise with no parent is level 1).
 MAX_DEPTH = 8
@@ -112,10 +112,22 @@ class FranchiseTreeFilter(FilterRelationManyToManyEqual):
         return query.filter(field.any(Franchise.id.in_(ids)))
 
 
+class AncestorLinkFilter(FilterRelationManyToManyEqual):
+    """ "Has ancestor" with the ancestor's wiki link as the value."""
+
+    name = "Has ancestor (link)"
+    arg_name = "ancestor_link"
+
+    def apply_item(self, query, field, value_item):
+        return query.filter(field.any(FigureReference.link == value_item))
+
+
 class FigureFilterConverter(SQLAFilterConverter):
     def convert(self, col_name):
         if col_name == "franchise":
             return [FranchiseTreeFilter(col_name, self.datamodel)]
+        if col_name == "ancestors":
+            return [AncestorLinkFilter(col_name, self.datamodel)]
         return super().convert(col_name)
 
 
