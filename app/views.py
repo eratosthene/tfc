@@ -5,6 +5,7 @@ from flask_appbuilder import ModelView, expose, has_access, permission_name
 from flask_appbuilder.filemanager import thumbgen_filename
 from flask_appbuilder.models.sqla.interface import SQLAInterface
 from app import app, appbuilder
+from app.franchises import FigureInterface, check_parent
 from app.models import (
     Franchise,
     Faction,
@@ -44,17 +45,56 @@ class FranchiseModelView(ModelView):
     list_columns = [
         "image_thumb_show",
         "name",
+        "parent",
         "start_year",
         "end_year",
         "link_show",
         "figure_list",
     ]
-    show_columns = ["image_show", "name", "start_year", "end_year", "link_show"]
-    # Pinned so the new parent_id column does not reach the forms before the
-    # nested-franchise work uses it.
-    _columns = ["name", "link", "image", "start_year", "end_year", "legacy_id"]
+    show_columns = [
+        "image_show",
+        "name",
+        "parent",
+        "start_year",
+        "end_year",
+        "link_show",
+    ]
+    _columns = [
+        "name",
+        "parent",
+        "link",
+        "image",
+        "start_year",
+        "end_year",
+        "legacy_id",
+    ]
     add_columns = edit_columns = _columns
-    search_columns = ["name", "link", "start_year", "end_year", "legacy_id"]
+    search_columns = ["name", "parent", "link", "start_year", "end_year", "legacy_id"]
+
+    def _check_parent(self, item):
+        try:
+            check_parent(item, item.parent)
+        except ValueError:
+            # The form has already put the new parent on the item; drop that.
+            self.datamodel.session.rollback()
+            raise
+
+    def pre_add(self, item):
+        self._check_parent(item)
+
+    def pre_update(self, item):
+        self._check_parent(item)
+
+    def pre_delete(self, item):
+        if (
+            item.id is not None
+            and self.datamodel.session.query(Franchise)
+            .filter(Franchise.parent_id == item.id)
+            .count()
+        ):
+            raise ValueError(
+                "%s still has sub-franchises; move or delete them first." % item.name
+            )
 
     @expose("/franchise_img/<pk>")
     @has_access
@@ -126,7 +166,7 @@ class TFWikiLinkModelView(ModelView):
 
 
 class FigureModelView(ModelView):
-    datamodel = SQLAInterface(Figure)
+    datamodel = FigureInterface(Figure)
     base_order = ("name", "asc")
     label_columns = {
         "image_thumb_show": "Picture",

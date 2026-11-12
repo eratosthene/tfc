@@ -77,6 +77,8 @@ class Franchise(Legacy, Named, db.Model):
     # Not used by the views yet; see docs/proposals/data-model.md.
     parent_id = Column(Integer, ForeignKey("franchise.id"))
 
+    parent = relationship("Franchise", remote_side=[id])
+
     def image_show(self):
         if self.image:
             return Markup(
@@ -487,7 +489,10 @@ class Figure(Legacy, Named, db.Model):
         return self.link_show(self.character)
 
     def franchise_show(self):
-        return self.link_list_show(self.franchise, True)
+        # The tagged franchises, then the ones above them (app/franchises.py).
+        from app.franchises import effective_franchises
+
+        return self.link_list_show(effective_franchises(self), True)
 
     def figure_link_show(self):
         return self.link_show(self.figure_link)
