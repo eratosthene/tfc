@@ -115,6 +115,7 @@ def test_continuity_name_is_the_page_suffix():
     f = mdm.continuity_name
     assert f(WIKI + "Rumble_(G1)/toys#Vintage_G1") == "G1"
     assert f(WIKI + "Bumblebee_(Cybertron_Mini-Con)") == "Cybertron Mini-Con"
+    assert f(WIKI + "Fireflight_(G1") == "G1"  # a link that lost its bracket
     assert f(WIKI + "Boater") is None
 
 

@@ -106,8 +106,12 @@ def character_link(link):
 
 
 def continuity_name(link):
-    """The ``(X)`` at the end of a character page, as ``X``, else None."""
-    match = re.search(r"_\(([^()]+)\)$", character_link(link).rsplit("/", 1)[-1])
+    """The ``(X)`` at the end of a character page, as ``X``, else None.
+
+    The closing bracket is optional: one production link (``Fireflight_(G1``)
+    has lost it.
+    """
+    match = re.search(r"_\(([^()]+)\)?$", character_link(link).rsplit("/", 1)[-1])
     return match.group(1).replace("_", " ") if match else None
 
 
