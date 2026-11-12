@@ -12,12 +12,15 @@ from sqlalchemy import select, update
 from app import app, db
 from app.models import Figure, FigureReference
 from app.tfwiki import modernise
-from app.tfwiki.fetcher import RateLimited, fetcher_from_config
+from app.tfwiki.fetcher import MIN_DELAY, RateLimited, fetcher_from_config
 
 
-def build_fetcher(fetch):
-    """The app's fetcher, which only reads its cache unless ``fetch`` is set."""
-    fetcher = fetcher_from_config(app.config)
+def build_fetcher(fetch, delay=None):
+    """The app's fetcher, which only reads its cache unless ``fetch`` is set.
+    ``delay`` (seconds between requests) overrides TFWIKI_DELAY."""
+    fetcher = fetcher_from_config(
+        app.config, **({} if delay is None else {"delay": delay})
+    )
     fetcher.enabled = fetcher.enabled and fetch
     return fetcher
 
@@ -58,9 +61,16 @@ def rewrite(model, old, new):
     show_default=True,
     help="Most pages to fetch in one run (with --fetch).",
 )
+@click.option(
+    "--delay",
+    type=float,
+    default=None,
+    metavar="SECONDS",
+    help="Seconds between requests (default TFWIKI_DELAY, 2). Never less than 2.",
+)
 @click.option("--apply", "apply_", is_flag=True, help="Save the rewrites.")
 @click.option("--json", "json_path", metavar="PATH", help="Also write the report.")
-def modernise_links(fetch, limit, apply_, json_path):
+def modernise_links(fetch, limit, delay, apply_, json_path):
     """Rewrite figure links like Name_(G1)#Anchor to Name/toys#Anchor.
 
     A link is rewritten only when the toys page has that exact {{anchor}}.
@@ -73,8 +83,13 @@ def modernise_links(fetch, limit, apply_, json_path):
         raise click.ClickException(
             "--fetch needs TFWIKI_ENABLED = True in config.py (see config.py.tpl)."
         )
+    if delay is not None and delay < MIN_DELAY:
+        click.echo(
+            "A gap under %g seconds is not allowed; using %g." % (MIN_DELAY, MIN_DELAY)
+        )
+        delay = MIN_DELAY
     links = used_links()
-    budget = modernise.Budget(build_fetcher(fetch), limit)
+    budget = modernise.Budget(build_fetcher(fetch, delay), limit)
     results = {}
     stopped = False
     for link in sorted(links):

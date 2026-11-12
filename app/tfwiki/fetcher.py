@@ -203,7 +203,9 @@ class Fetcher:
 
 
 def fetcher_from_config(config, **kwargs):
-    """A Fetcher set up from the app's config (TFWIKI_ENABLED, TFWIKI_CACHE_DIR)."""
+    """A Fetcher set up from the app's config (TFWIKI_ENABLED, TFWIKI_CACHE_DIR,
+    TFWIKI_DELAY). Keyword arguments, such as ``delay``, override the config."""
+    kwargs.setdefault("delay", config.get("TFWIKI_DELAY", MIN_DELAY))
     return Fetcher(
         config.get("TFWIKI_CACHE_DIR", "tfwiki-cache"),
         enabled=bool(config.get("TFWIKI_ENABLED", False)),

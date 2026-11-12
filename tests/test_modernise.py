@@ -407,8 +407,8 @@ def test_the_command_never_fetches_without_the_flag(old_links, cache_only, monke
     seen = []
     real = cli.build_fetcher
 
-    def watching(fetch):
-        fetcher = real(fetch)
+    def watching(fetch, delay=None):
+        fetcher = real(fetch, delay)
         seen.append((fetch, fetcher.enabled))
         return fetcher
 
@@ -436,7 +436,7 @@ def test_fetch_fetches_what_is_missing_up_to_the_limit(
     monkeypatch.setattr(
         cli,
         "build_fetcher",
-        lambda fetch: Fetcher(
+        lambda fetch, delay=None: Fetcher(
             str(empty),
             enabled=fetch,
             get=get,
@@ -461,8 +461,32 @@ def test_rate_limiting_stops_the_run(old_links, tmp_path, monkeypatch):
     monkeypatch.setattr(
         cli,
         "build_fetcher",
-        lambda fetch: Fetcher(str(empty), enabled=fetch, get=get, sleep=lambda s: None),
+        lambda fetch, delay=None: Fetcher(
+            str(empty), enabled=fetch, get=get, sleep=lambda s: None
+        ),
     )
     result = run("--fetch")
     assert "asked us to slow down; stopped" in result.output
     assert "not looked at" in result.output
+
+
+def test_the_gap_between_requests_can_be_lengthened_but_not_shortened(
+    old_links, cache_only, monkeypatch
+):
+    gaps = []
+    real = cli.build_fetcher
+
+    def watching(fetch, delay=None):
+        fetcher = real(fetch, delay)
+        gaps.append(fetcher._throttle.delay)
+        return fetcher
+
+    monkeypatch.setattr(cli, "build_fetcher", watching)
+    run()
+    assert run("--delay", "7.5").exit_code == 0
+    result = run("--delay", "0.5")
+    assert "A gap under 2 seconds is not allowed; using 2." in result.output
+    flask_app.config["TFWIKI_DELAY"] = 4
+    run()
+    run("--delay", "10")
+    assert gaps == [2.0, 7.5, 2.0, 4.0, 10.0]

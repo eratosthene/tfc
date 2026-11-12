@@ -148,10 +148,12 @@ how many pages are missing. Without ``--apply`` it saves nothing::
 
 To fill the cache, set ``TFWIKI_ENABLED = True`` in ``config.py`` (tfwiki.net's
 robots.txt disallows automated clients; this is a deliberate, personal, low-rate
-use) and run in small batches, each page two seconds after the last, cached
-for good, stopping if the wiki says to slow down::
+use) and run in small batches, each page two seconds after the last (longer with
+``TFWIKI_DELAY`` in ``config.py`` or ``--delay SECONDS``; never shorter than two),
+cached for good, stopping if the wiki says to slow down::
 
 	flask modernise-links --fetch --limit 50
+	flask modernise-links --fetch --limit 50 --delay 5     # gentler
 
 In Docker, ``docker/compose.yml`` mounts ``tfwiki-cache/`` at the repo root; make
 it writable first with ``mkdir -p tfwiki-cache && chown 1000 tfwiki-cache``, and
