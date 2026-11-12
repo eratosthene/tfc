@@ -141,6 +141,22 @@ CI also requires 100% line coverage of ``app/`` (``--cov=app --cov-fail-under=10
 see ``.coveragerc`` for what is not measured: ``migrations/``, ``scripts/`` and
 the tests). Check it locally with ``python -m pytest --cov=app --cov-report=term-missing``.
 
+Nested franchises
+~~~~~~~~~~~~~~~~~
+
+A franchise can have one parent (Legacy United under Legacy under Generations),
+set in the franchise's add and edit forms. Tag a figure with only the lowest
+franchise that fits: its page lists the franchises above it too, and filtering
+the Figure list by a franchise (or "Search Figures" on the Franchise list) also
+finds the figures tagged with anything below it. A franchise cannot go under
+itself or one of its own descendants, a tree may be 8 levels deep at most, and
+a franchise that still has sub-franchises cannot be deleted.
+
+Figures already tagged with every level by hand are not harmed. To tidy them
+after setting the parents, ``flask prune-franchises`` lists the tags that a
+lower tag on the same figure already covers, and changes nothing;
+``flask prune-franchises --apply`` removes them. It never runs by itself.
+
 Moving to the new data model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

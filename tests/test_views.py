@@ -303,7 +303,7 @@ def test_the_new_data_model_columns_stay_out_of_the_forms():
 
     for view, new in (
         (FigureModelView, {"link", "accessories_text", "character_new"}),
-        (FranchiseModelView, {"parent", "parent_id"}),
+        (FranchiseModelView, {"parent_id"}),
     ):
         for columns in (view.add_columns, view.edit_columns, view.search_columns):
             assert not new & set(columns)

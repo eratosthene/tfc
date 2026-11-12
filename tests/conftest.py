@@ -64,6 +64,9 @@ def _app_context():
 def _clean_models(_schema, _app_context):
     # Empty our tables, not FAB's ab_* ones (the test user lives there).
     db.session.rollback()
+    # A franchise may point at another one, so none may keep a parent while the
+    # rows are deleted in table order.
+    db.session.execute(Franchise.__table__.update().values(parent_id=None))
     for t in reversed(db.metadata.sorted_tables):
         if not t.name.startswith("ab_"):
             db.session.execute(t.delete())
