@@ -38,3 +38,15 @@ def test_404_template(auth_client):
     resp = auth_client.get("/no/such/page")
     assert resp.status_code == 404
     assert "<html" in resp.get_data(as_text=True).lower()
+
+
+def test_404_handler_is_registered_on_the_flask_app(auth_client):
+    # Registered on the Flask app itself, not through the deprecated
+    # appbuilder.app (which logs a warning at import time).
+    from app import app as flask_app
+    from app.views import page_not_found
+
+    assert page_not_found in flask_app.error_handler_spec[None][404].values()
+    resp = auth_client.get("/no/such/page")
+    assert resp.status_code == 404
+    assert "Page not found" in resp.get_data(as_text=True)
