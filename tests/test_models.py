@@ -3,7 +3,7 @@
 import pytest
 from flask_appbuilder.filemanager import thumbgen_filename
 
-from app import app as flask_app
+from app import app as flask_app, db
 from app.models import (
     Accessory,
     Category,
@@ -192,3 +192,17 @@ def test_history_and_packed_with_show():
 def test_thumbgen_name_matches_views():
     # send_image relies on this naming to find a thumbnail on disk.
     assert thumbgen_filename("a_sep_b.png") == "a_sep_b_thumb.png"
+
+
+def test_a_continuity_belongs_to_at_most_one_family():
+    from app.models import Character, Continuity, ContinuityFamily
+
+    aligned = ContinuityFamily(name="Aligned", link="https://tfwiki.net/wiki/Aligned")
+    foc = Continuity(name="FOC", family=aligned)
+    alone = Continuity(name="Boater era")
+    db.session.add_all(
+        [foc, alone, Character(name="Blaster", link="b", continuity=foc)]
+    )
+    db.session.commit()
+    assert foc.family.name == "Aligned" and str(foc.family) == "Aligned"
+    assert alone.family is None

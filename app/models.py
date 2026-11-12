@@ -271,12 +271,26 @@ class TFWikiLink(Legacy, db.Model):
 # The structures of docs/proposals/data-model.md. They sit next to the old ones
 # (tf_wiki_link, accessory, ...) until the cutover and are filled in by
 # scripts/migrate_data_model.py; the views do not read them yet.
+class ContinuityFamily(Named, db.Model):
+    """The wiki's grouping of continuities (Aligned, Generation 1, Robots in
+    Disguise...). A continuity such as RID or FOC belongs to at most one."""
+
+    __tablename__ = "continuity_family"
+    __table_args__ = TABLE_ARGS
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False, unique=True)
+    link = Column(String(500))
+
+
 class Continuity(Named, db.Model):
     __tablename__ = "continuity"
     __table_args__ = TABLE_ARGS
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False, unique=True)
     link = Column(String(500))
+    family_id = Column(Integer, ForeignKey("continuity_family.id"))
+
+    family = relationship("ContinuityFamily")
 
 
 class Character(Named, db.Model):
