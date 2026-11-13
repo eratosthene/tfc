@@ -240,6 +240,10 @@ def reference_fields():
     }
 
 
+# A figure with gestalt components is expected to have one of these categories.
+GESTALT_CATEGORIES = ("Combiner", "Duocon", "Duobot")
+
+
 class FigureModelView(ModelView):
     datamodel = FigureInterface(Figure)
     base_order = ("name", "asc")
@@ -368,9 +372,12 @@ class FigureModelView(ModelView):
             .limit(1)
         ):
             flash("Another figure already has this link (saved anyway).", "warning")
-        if item.gestalt_of and not any(c.name == "Combiner" for c in item.categories):
+        if item.gestalt_of and not any(
+            c.name in GESTALT_CATEGORIES for c in item.categories
+        ):
             flash(
-                "Gestalt components are set but the Combiner category is not.",
+                "Gestalt components are set but none of the %s categories is."
+                % ", ".join(GESTALT_CATEGORIES),
                 "warning",
             )
 

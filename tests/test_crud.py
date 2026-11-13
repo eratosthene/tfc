@@ -249,19 +249,20 @@ def test_the_same_link_on_two_figures_saves_with_a_warning(auth_client, seed):
     assert other.link == link
 
 
-def test_gestalt_without_the_combiner_category_warns(auth_client, seed):
+@pytest.mark.parametrize("category", ["Combiner", "Duocon", "Duobot"])
+def test_gestalt_without_a_combining_category_warns(auth_client, seed, category):
     data = figure_form(seed, gestalt_of=[str(seed["figure"].id)])
-    assert "Combiner category is not" in post_figure(auth_client, data)
-    db.session.add(Category(name="Combiner"))
+    assert "Combiner, Duocon, Duobot categories" in post_figure(auth_client, data)
+    db.session.add(Category(name=category))
     db.session.commit()
-    combiner = db.session.query(Category).filter_by(name="Combiner").one()
+    chosen = db.session.query(Category).filter_by(name=category).one()
     data = figure_form(
         seed,
         name="Second",
         gestalt_of=[str(seed["figure"].id)],
-        categories=[str(combiner.id)],
+        categories=[str(chosen.id)],
     )
-    assert "Combiner category is not" not in post_figure(auth_client, data)
+    assert "categories is" not in post_figure(auth_client, data)
 
 
 def test_delete_a_character_in_use_is_refused(auth_client, seed):
