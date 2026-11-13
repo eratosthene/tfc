@@ -28,7 +28,9 @@ def _symbol(fetcher, code, factions):
     return css, parser.faction_from_class(css, factions)
 
 
-def read_figure(fetcher, url, factions=parser.DEFAULT_FACTIONS, search_all=False):
+def read_figure(
+    fetcher, url, factions=parser.DEFAULT_FACTIONS, search_all=False, fields=True
+):
     """Suggestions for the figure a tfwiki.net link points at.
 
     Reads the page, and when the figure is not on it follows the
@@ -39,7 +41,8 @@ def read_figure(fetcher, url, factions=parser.DEFAULT_FACTIONS, search_all=False
     matching entry the suggested fields and its canonical link. Raises
     ``parser.ParseError`` for a link that is not a tfwiki.net page,
     ``FigureNotFound`` when no page has such a figure, and the fetcher's errors
-    unchanged.
+    unchanged. With ``fields=False`` only the link is worked out: no suggestions
+    are made, and so no faction-symbol template pages are fetched.
     """
     asked, fragment = parser.parse_url(url)
     title, text = fetcher.page(asked)
@@ -69,22 +72,28 @@ def read_figure(fetcher, url, factions=parser.DEFAULT_FACTIONS, search_all=False
     for page, entry, how in found:
         use = fragment or (entry["anchors"] or [entry["heading"]])[0]
         link = parser.page_url(page, use or None)
-        fields = parser.figure_fields(entry, page, factions, own_urls=(link,))
-        if fields["faction"] is None and fields["bp_code"]:
-            css, faction = _symbol(fetcher, fields["bp_code"], factions)
-            fields["symbol_class"] = css
-            if faction:
-                fields["faction"] = {"value": faction, "source": "symbol class " + css}
+        suggestions = None
+        if fields:
+            suggestions = parser.figure_fields(entry, page, factions, own_urls=(link,))
+            if suggestions["faction"] is None and suggestions["bp_code"]:
+                css, faction = _symbol(fetcher, suggestions["bp_code"], factions)
+                suggestions["symbol_class"] = css
+                if faction:
+                    suggestions["faction"] = {
+                        "value": faction,
+                        "source": "symbol class " + css,
+                    }
         candidates.append(
             {
                 "matched_by": how,
                 "anchors": entry["anchors"],
                 "link": link,
-                "fields": fields,
+                "fields": suggestions,
                 "block": "\n".join(entry["lines"]),
             }
         )
     return {
+        "asked": asked,
         "page": found[0][0],
         "fragment": fragment,
         "moved": moved,

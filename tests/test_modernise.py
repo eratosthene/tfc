@@ -198,6 +198,29 @@ def test_the_figure_reader_still_stops_at_the_first_toys_page_by_default():
     assert "Name_(G1)/Generations_toys" not in wiki.asked
 
 
+def test_checking_a_link_never_fetches_faction_symbol_templates():
+    # {{Bp-pr9}} has no faction in its code, so suggestions would fetch
+    # Template:Bp-pr9. Checking a link only needs the link.
+    block = (
+        '{{anchor|Wanted}}\n<ul class="iconlist">'
+        "{{Bp-pr9|'''A''' (Deluxe Class, 2000)}}</ul>\n"
+    )
+    wiki = Fake(
+        {
+            "Name_(G1)": ("Name (G1)", "{{main|Name (G1)/toys}}\n"),
+            "Name_(G1)/toys": ("Name (G1)/toys", toys(block)),
+        }
+    )
+    assert m.check(wiki, WIKI + "Name_(G1)#Wanted").status == m.REWRITE
+    assert not [t for t in wiki.asked if t.startswith("Template:")]
+
+
+def test_a_figure_described_in_prose_on_its_own_page_is_current():
+    page = "Intro.\n==Toys==\n===''The Line''===\n:''A prose description.''\n"
+    wiki = Fake({"Name_(G1)": ("Name (G1)", page)})
+    assert m.check(wiki, WIKI + "Name_(G1)#The_Line").status == m.CURRENT
+
+
 def test_a_redirect_is_not_a_move_to_a_toys_page():
     wiki = Fake({"Old_Name": ("New Name (G1)", toys(entry("Thing")))})
     assert m.check(wiki, WIKI + "Old_Name#Thing").status == m.REDIRECT

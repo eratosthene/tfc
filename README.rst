@@ -128,6 +128,40 @@ a 429 or 503, sends a User-Agent naming this repository, and caches every page b
 title, so a page is fetched once. Cached pages are readable with fetching off. The
 recorded pages the tests use are in ``tests/fixtures/tfwiki`` (see its README).
 
+Add from TFWiki
+~~~~~~~~~~~~~~~
+
+The **Add from TFWiki** menu item makes a figure from a tfwiki.net link, for
+example ``https://tfwiki.net/wiki/Alpha_Trion/toys#Legacy`` (an old-style link to
+a character page works too: the figure is found on its toys page and the link is
+corrected). There is no bulk import, by design: one link, one figure.
+
+1. **Paste** the link. Only ``tfwiki.net/wiki/...`` links are accepted. A page
+   already in the cache is read from it; a page that is not is fetched only if
+   ``TFWIKI_ENABLED`` is on (see "Modernising old links" for the rules). "Refresh
+   from the wiki" ignores the cached copy for that lookup.
+2. If the link matches several figures (one toyline heading can hold more than
+   one), pick the one you mean.
+3. **Review** a form pre-filled with the wiki's data and a note saying where each
+   guess came from, next to the raw wiki text: name, release year, faction,
+   franchise, tooling, categories, accessories, Hasbro and Takara IDs, ancestors
+   (``Model History``), pack-mates (``Packed With``), the character and its
+   continuity. Names that match your own factions, franchises, tooling and
+   categories are selected; nothing is guessed silently. The character page's
+   first sentence ("... is an Autobot from the Robots in Disguise continuity
+   family") is shown as a hint and fills in a missing faction. A figure the wiki
+   describes only in prose under a toyline heading comes through with the
+   character's name and no year.
+4. **Add figure** saves, in one transaction, the figure plus a character and
+   continuity only if they are new, and the references. An existing character is
+   reused and never edited. If a figure with the same link is already in the
+   collection, it is shown and you must tick "add another copy"; nothing existing is
+   ever changed. Ticking "remember" with exactly one franchise selected stores that
+   wiki toyline name as an alias, so the next lookup pre-selects the franchise.
+
+The wiki picture is only shown (loaded by your browser from tfwiki.net); nothing is
+downloaded or saved. Add one to the figure with the normal Edit form.
+
 Modernising old links
 ~~~~~~~~~~~~~~~~~~~~~
 

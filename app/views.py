@@ -7,6 +7,7 @@ from sqlalchemy import select
 from wtforms import TextAreaField, widgets
 from app import app, appbuilder
 from app import continuities  # noqa: F401 (registers flask set-continuity-names)
+from app.addfigure import AddFromTFWikiView
 from app import modernise  # noqa: F401 (registers flask modernise-links)
 from app.franchises import FigureInterface, NameSortedInterface, check_parent
 from app.models import (
@@ -374,6 +375,7 @@ class FigureModelView(ModelView):
 
 
 appbuilder.add_view(FigureModelView, "Figures")
+appbuilder.add_view(AddFromTFWikiView, "Add from TFWiki")
 appbuilder.add_view(FranchiseModelView, "Franchises")
 appbuilder.add_view(FactionModelView, "Factions")
 appbuilder.add_view(ToolingModelView, "Toolings")

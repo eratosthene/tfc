@@ -209,6 +209,10 @@ def entries(wikitext, title):
     template code or None), ``bullets`` [(label, value)], ``paragraphs``
     (prose lines), ``components`` (the ``:{{Bp-..}}`` parts of a multi-pack),
     ``picture`` (first File name or None) and ``lines`` (the raw block).
+
+    A toyline heading with no such figure line under it (a character whose toys
+    are described in prose, one section per toyline) gives one entry for the
+    section, with an empty ``header`` and ``code`` None.
     """
     lines = wikitext.splitlines()
     start, end = _toys_range(lines)
@@ -240,8 +244,19 @@ def entries(wikitext, title):
         lead.reverse()
         stop = starts[n + 1][0] if n + 1 < len(starts) else end
         stop = min([stop] + [j for j in heads if i < j < stop])
-        out.append(_entry(lines[i:stop], lead, heading, sub, title))
-    return out
+        out.append((i, _entry(lines[i:stop], lead, heading, sub, title)))
+    for i, (level, heading, _sub) in heads.items():
+        if level != 3:
+            continue
+        stop = min(
+            [j for j, (lvl, _h, _s) in heads.items() if j > i and lvl <= 3] + [end]
+        )
+        if any(i < s < stop for s, _h, _sub2 in starts):
+            continue
+        block = lines[i + 1 : stop]
+        if any(line.strip() and not SPACER.match(line) for line in block):
+            out.append((i, _entry(block, [], heading, "", title)))
+    return [entry for _i, entry in sorted(out, key=lambda pair: pair[0])]
 
 
 def _toys_range(lines):
@@ -259,19 +274,21 @@ def _toys_range(lines):
 def _entry(block, lead, heading, sub, title):
     first = block[0]
     new = ITEM_NEW.search(first)
+    old = ITEM_OLD.match(first)
+    skip = 1 if (new or old) else 0  # a section has no header line
     entry = {
         "heading": heading,
         "subheading": sub,
         "anchors": [m.group(1).strip() for line in lead for m in ANCHOR.finditer(line)],
         "code": new.group(1).lower() if new else None,
-        "header": new.group(2) if new else ITEM_OLD.match(first).group(1),
+        "header": new.group(2) if new else old.group(1) if old else "",
         "bullets": [],
         "paragraphs": [],
         "components": [],
         "lines": block,
     }
     pictures = _files(lead)
-    for line in block[1:]:
+    for line in block[skip:]:
         part = ITEM_NEW.search(line)
         if part and line.lstrip().startswith(":"):
             entry["components"].append(
@@ -282,13 +299,21 @@ def _entry(block, lead, heading, sub, title):
             )
             continue
         b = BULLET.match(line)
-        if b:
+        if b and (skip or _field_label(b.group(1))):
             entry["bullets"].append((b.group(1), b.group(2)))
         elif line.strip() and not line.startswith(("{{", "<", "*", "=")):
             entry["paragraphs"].append(line.lstrip(": "))
     pictures = pictures or _files(block)
     entry["picture"] = pictures[0] if pictures else None
     return entry
+
+
+def _field_label(label):
+    """True if ``label`` names a field we read (Accessories, Hasbro ID...). In a
+    prose section an italic sentence also looks like ``''label'': value``, so only
+    these count as bullets there."""
+    label = label.strip().rstrip(":").strip().lower()
+    return any(label in names for names in FIELD_LABELS.values())
 
 
 def matches(entry, fragment):
@@ -556,3 +581,61 @@ def character(title):
         "page": character_page(title),
         "link": page_url(character_page(title)),
     }
+
+
+# --- the lead sentence of a character page ----------------------------------
+
+FAMILY_LINK = re.compile(r"\[\[([^\]|#]+?) continuity family(?:\|[^\]]*)?\]\]", re.I)
+# "the [[Transformers: Shattered Glass (franchise)|Shattered Glass]] [[continuity family]]"
+LABELLED_FAMILY = re.compile(
+    r"\[\[[^\]|]+\|([^\]]+)\]\]\s*\[\[continuity family\]\]", re.I
+)
+PORTION = re.compile(
+    r"\b(?:from|in) the (.+?) (?:portion|era|segment|section) of the\s*$", re.I
+)
+
+
+def _mask_links(text):
+    """``text`` with each [[wikilink]] blanked out, same length: a "!" or "." in
+    a link target (``Fight! Super Robot...``) is not the end of a sentence."""
+    return re.sub(r"\[\[.*?\]\]", lambda m: "x" * len(m.group(0)), text)
+
+
+def lead(wikitext, factions=DEFAULT_FACTIONS):
+    """What a character page's first sentence says: ``Omega Prime is an
+    [[Autobot]] [[combiner]] from the [[Robots in Disguise continuity family]]``.
+
+    Only a sentence of the form "X is/are ... continuity family" counts, so a later
+    paragraph that merely mentions a family is not mistaken for it. Returns
+    {sentence, family, faction, portion} with the parts that were found, or None.
+    These are suggestions.
+    """
+    wanted = {f.lower(): f for f in factions}
+    for line in wikitext.splitlines()[:80]:
+        matches = [
+            (m.start(), m.end(), m.group(1).strip())
+            for pattern in (FAMILY_LINK, LABELLED_FAMILY)
+            for m in pattern.finditer(line)
+        ]
+        if not matches:
+            continue
+        first, last, family = min(matches)
+        masked = _mask_links(line)
+        begin = max([m.end() for m in SENTENCE.finditer(masked[:first])] or [0])
+        start = line[begin:first]
+        if not re.search(r"\b(?:is|are)\b", clean(start)):
+            continue
+        stop = SENTENCE.search(masked, last)
+        found = {
+            "sentence": clean(line[begin : stop.start() if stop else len(line)]),
+            "family": family,
+        }
+        for link in LINK.finditer(start):
+            if link.group(1).strip().lower() in wanted:
+                found["faction"] = wanted[link.group(1).strip().lower()]
+                break
+        portion = PORTION.search(clean(start + "x")[:-1].rstrip() + " ")
+        if portion:
+            found["portion"] = portion.group(1).strip()
+        return found
+    return None
