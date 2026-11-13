@@ -1,13 +1,21 @@
 import os
 
-from flask import abort, flash, render_template, send_from_directory, current_app
+from flask import (
+    abort,
+    current_app,
+    flash,
+    render_template,
+    request,
+    send_from_directory,
+)
 from flask_appbuilder import ModelView, expose, has_access, permission_name
 from flask_appbuilder.filemanager import thumbgen_filename
 from sqlalchemy import select
 from wtforms import TextAreaField, widgets
-from app import app, appbuilder
+from app import app, appbuilder, db
 from app import continuities  # noqa: F401 (registers flask set-continuity-names)
-from app.addfigure import AddFromTFWikiView
+from app.addfigure import AddFromTFWikiView, CsrfOnly
+from app.refresh import RefreshFigureView
 from app import modernise  # noqa: F401 (registers flask modernise-links)
 from app.franchises import FigureInterface, NameSortedInterface, check_parent
 from app.models import (
@@ -313,6 +321,17 @@ class FigureModelView(ModelView):
         "ancestors",
     ]
     add_form_extra_fields = edit_form_extra_fields = reference_fields()
+    edit_template = "figure_edit.html"
+
+    def render_template(self, template, **kwargs):
+        """The edit page's "Refresh from TFWiki" panel needs the saved link."""
+        if template == self.edit_template:
+            kwargs["pk"] = request.view_args.get("pk")
+            kwargs["saved_link"] = db.session.scalar(
+                select(Figure.link).where(Figure.id == kwargs["pk"])
+            )
+            kwargs["csrf_form"] = CsrfOnly()
+        return super().render_template(template, **kwargs)
 
     def prefill_form(self, form, pk):
         figure = self.datamodel.get(pk)
@@ -376,6 +395,7 @@ class FigureModelView(ModelView):
 
 appbuilder.add_view(FigureModelView, "Figures")
 appbuilder.add_view(AddFromTFWikiView, "Add from TFWiki")
+appbuilder.add_view_no_menu(RefreshFigureView)
 appbuilder.add_view(FranchiseModelView, "Franchises")
 appbuilder.add_view(FactionModelView, "Factions")
 appbuilder.add_view(ToolingModelView, "Toolings")

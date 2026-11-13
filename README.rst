@@ -159,8 +159,34 @@ corrected). There is no bulk import, by design: one link, one figure.
    ever changed. Ticking "remember" with exactly one franchise selected stores that
    wiki toyline name as an alias, so the next lookup pre-selects the franchise.
 
-The wiki picture is only shown (loaded by your browser from tfwiki.net); nothing is
-downloaded or saved. Add one to the figure with the normal Edit form.
+The wiki picture is shown (loaded by your browser from tfwiki.net). Nothing is
+downloaded unless you press **Use this picture**: the app then downloads that one
+file (needs ``TFWIKI_ENABLED``; it waits its turn like a page does, refuses anything
+off tfwiki.net or over 10 MB, and stops if the wiki says to slow down) and saves it
+as an upload, with its thumbnail, to go with the figure. **Remove this picture**
+deletes a downloaded picture that no figure uses yet; a picture a figure already has
+is never deleted. A picture you downloaded and then abandoned by leaving the page
+stays in the uploads folder until you delete it.
+
+Refreshing a figure from the wiki
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The **Edit Figure** page has a panel using the figure's saved *Link to Figure*
+(nothing to paste): **Refresh from TFWiki** looks the link up again, ignoring the
+cached copy (needs fetching on); **Compare with the cached copy** uses what is
+cached. Either lists what the wiki says that differs, one row per field, and each is
+**Accept** or **Skip** on its own. Only accepted changes are saved, in one step, and
+only when you press the button.
+
+What it proposes: values the wiki has (it never empties a field, and never removes
+anything); additions for franchise, tooling, categories, ancestors and pack-mates (a
+franchise the figure already has through a tagged child is not proposed); and
+replacements for the name, year, faction, link, accessories and IDs. A wiki name that
+is a whole pack containing this figure's name ("Dreadwind & Smokejumper") is not
+proposed as a rename, and accessories are compared without regard to capitals. Accept
+is pre-selected only where the figure's own value is empty, and never for a picture,
+which is a download; a replaced picture's old file stays on disk. If the link matches
+several figures you are asked which one is this.
 
 Modernising old links
 ~~~~~~~~~~~~~~~~~~~~~

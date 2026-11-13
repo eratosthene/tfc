@@ -167,3 +167,80 @@ def auth_client(client, admin_user):
     )
     assert resp.status_code in (200, 302)
     return client
+
+
+# --- tfwiki.net: recorded pages, and a fake wiki (nothing here uses the network) ----
+
+
+@pytest.fixture
+def cached(tmp_path, monkeypatch):
+    """The recorded wiki pages (tests/fixtures/tfwiki) as the app's cache, with
+    fetching off."""
+    import shutil
+
+    source = os.path.join(HERE, "fixtures", "tfwiki")
+    folder = tmp_path / "cache"
+    folder.mkdir()
+    for name in os.listdir(source):
+        if name.endswith(".json"):
+            shutil.copy(os.path.join(source, name), folder)
+    monkeypatch.setitem(flask_app.config, "TFWIKI_CACHE_DIR", str(folder))
+    monkeypatch.setitem(flask_app.config, "TFWIKI_ENABLED", False)
+    return str(folder)
+
+
+@pytest.fixture
+def csrf_on(monkeypatch):
+    """Turn CSRF checking on (the test config has it off)."""
+    monkeypatch.setitem(flask_app.config, "WTF_CSRF_ENABLED", True)
+
+
+@pytest.fixture
+def online(cached, monkeypatch):
+    """Fetching is on, against a fake wiki. Pages come from the recorded copies (so
+    a "refresh" really goes through the fetch path; a page that was not recorded
+    is "no such page"); ``state.picture`` is what a picture download returns."""
+    import io
+    import urllib.parse
+    from types import SimpleNamespace
+
+    from PIL import Image
+
+    from app import addfigure, refresh
+    from app.tfwiki.fetcher import Fetcher, PageNotFound, cache_name
+
+    buf = io.BytesIO()
+    Image.new("RGB", (400, 300), "blue").save(buf, "JPEG")
+    state = SimpleNamespace(
+        pages=[], pictures=[], picture=(buf.getvalue(), "image/jpeg")
+    )
+
+    def get(url):
+        title = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["page"][0]
+        state.pages.append(title)
+        path = os.path.join(cached, cache_name(title))
+        if not os.path.exists(path):
+            raise PageNotFound(title)
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+
+    def get_bytes(url):
+        state.pictures.append(url)
+        if isinstance(state.picture, Exception):
+            raise state.picture
+        return state.picture
+
+    def make(refreshing=False):
+        fetcher = Fetcher(
+            cached,
+            enabled=True,
+            get=get,
+            get_bytes=get_bytes,
+            sleep=lambda seconds: None,
+            wall=lambda: 1000.0,
+        )
+        return addfigure.Refreshing(fetcher) if refreshing else fetcher
+
+    monkeypatch.setattr(addfigure, "make_fetcher", make)
+    monkeypatch.setattr(refresh, "make_fetcher", make)
+    return state

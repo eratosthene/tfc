@@ -3,7 +3,6 @@ tests/fixtures/tfwiki, so nothing here touches the network."""
 
 import os
 import re
-import shutil
 
 import pytest
 
@@ -29,18 +28,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FIXTURES = os.path.join(HERE, "fixtures", "tfwiki")
 WIKI = "https://tfwiki.net/wiki/"
 ALPHA = WIKI + "Alpha_Trion_(G1)#Legacy"  # moved: the figure is on Alpha_Trion/toys
-
-
-@pytest.fixture
-def cached(tmp_path, monkeypatch):
-    folder = tmp_path / "cache"
-    folder.mkdir()
-    for name in os.listdir(FIXTURES):
-        if name.endswith(".json"):
-            shutil.copy(os.path.join(FIXTURES, name), folder)
-    monkeypatch.setitem(flask_app.config, "TFWIKI_CACHE_DIR", str(folder))
-    monkeypatch.setitem(flask_app.config, "TFWIKI_ENABLED", False)
-    return str(folder)
 
 
 def lookup(client, url, **extra):
@@ -596,11 +583,6 @@ def test_the_figure_made_here_opens_on_its_page(auth_client, cached, seed):
 
 
 # --- CSRF ------------------------------------------------------------------------
-
-
-@pytest.fixture
-def csrf_on(monkeypatch):
-    monkeypatch.setitem(flask_app.config, "WTF_CSRF_ENABLED", True)
 
 
 def token(html):

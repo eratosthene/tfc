@@ -143,6 +143,20 @@
       <textarea class="form-control" id="packed_with_text" name="packed_with_text" rows="6">{{ values.packed_with_text }}</textarea>
       {{ note("One per line: Name | link") }}
       {% for p in packed_with %}{{ note("guessed from: " ~ p.evidence) }}{% endfor %}</div>
+    {% if picture or values.image %}
+    <fieldset><legend>Picture</legend>
+      <input type="hidden" name="image" value="{{ values.image }}"/>
+      {% if values.image %}
+      <p><img src="{{ url_for('uploaded_file', filename=pending_thumbnail) }}" alt="Downloaded picture" class="img-rounded"/><br/>
+        <small>Downloaded and ready; it is saved with the figure.</small></p>
+      <button type="submit" class="btn btn-default btn-sm" formaction="{{ url_for('AddFromTFWikiView.discard_picture') }}">Remove this picture</button>
+      {% endif %}
+      {% if picture %}
+      <button type="submit" class="btn btn-default btn-sm" formaction="{{ url_for('AddFromTFWikiView.picture') }}">{{ "Download it again" if values.image else "Use this picture" }}</button>
+      {{ note("Downloads " ~ picture.file ~ " from tfwiki.net now (needs fetching to be on) and saves it with the figure. Nothing is downloaded unless you press this.") }}
+      {% endif %}
+    </fieldset>
+    {% endif %}
     <div class="form-group"><label for="quantity">Quantity</label>
       <input class="form-control" id="quantity" name="quantity" value="{{ values.quantity }}"/></div>
     <div class="form-group"><label for="condition">Condition</label>

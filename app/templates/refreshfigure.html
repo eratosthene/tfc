@@ -1,0 +1,70 @@
+{% extends "appbuilder/base.html" %}
+{% macro csrf() %}{{ csrf_form.hidden_tag() }}{% endmacro %}
+{% block content %}
+<div class="container">
+  <h1>Refresh {{ figure.name }} from TFWiki</h1>
+  <p>Link: <a href="{{ figure.link }}">{{ figure.link }}</a></p>
+
+{% if step == "problem" %}
+  <div class="alert alert-danger">
+    {{ problem }}
+    {% if problem.hints %}
+    <p>That page has these figure sections:</p>
+    <ul>{% for h in problem.hints %}<li>{{ h }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+  <a class="btn btn-default" href="{{ url_for('FigureModelView.edit', pk=figure.id) }}">Back to the figure</a>
+
+{% elif step == "choose" %}
+  <p>{{ result.page }} has {{ result.candidates|length }} figures under that link. Which one is this?</p>
+  {% for c in result.candidates %}
+  <form method="post" action="{{ url_for('RefreshFigureView.compare', pk=figure.id) }}" class="well">
+    {{ csrf() }}
+    <input type="hidden" name="pick" value="{{ loop.index0 }}"/>
+    <strong>{{ c.fields.name or "(no name)" }}</strong>
+    {% if c.fields.release_year %}({{ c.fields.release_year }}){% endif %}
+    {% if c.fields.classes %}&middot; {{ c.fields.classes|join(", ") }}{% endif %}
+    {% if c.fields.toyline %}&middot; {{ c.fields.toyline }}{% endif %}
+    <button type="submit" class="btn btn-primary btn-sm pull-right">This one</button>
+  </form>
+  {% endfor %}
+
+{% else %}
+  {% if errors %}
+  <div class="alert alert-danger"><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+  {% endif %}
+  {% if not changes %}
+  <div class="alert alert-success">Nothing on the wiki page differs from this figure, or adds to it.</div>
+  <a class="btn btn-default" href="{{ url_for('FigureModelView.edit', pk=figure.id) }}">Back to the figure</a>
+  {% else %}
+  <p>{{ changes|length }} difference{{ "s" if changes|length != 1 }} from {{ result.page }}. Accept the ones you want;
+    the rest are skipped and the figure keeps what it has. Nothing is saved until you press the button.</p>
+  <form method="post" action="{{ url_for('RefreshFigureView.apply', pk=figure.id) }}">
+    {{ csrf() }}
+    <input type="hidden" name="pick" value="{{ pick }}"/>
+    <table class="table table-striped">
+      <thead><tr><th>Field</th><th>Now</th><th>On the wiki</th><th>Change</th></tr></thead>
+      <tbody>
+      {% for c in changes %}
+        <tr>
+          <th>{{ c.label }}</th>
+          <td style="white-space:pre-wrap">{{ c.current or "(empty)" }}</td>
+          <td style="white-space:pre-wrap">{{ c.new }}{% if c.note %}<br/><small class="text-muted">{{ c.note }}</small>{% endif %}</td>
+          <td>
+            {% set choice = selected.get(c.key, c.default) %}
+            <label class="radio-inline"><input type="radio" name="choice_{{ c.key }}" value="accept" {{ "checked" if choice == "accept" }}/> Accept</label>
+            <label class="radio-inline"><input type="radio" name="choice_{{ c.key }}" value="skip" {{ "checked" if choice != "accept" }}/> Skip</label>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit" class="btn btn-primary">Apply the accepted changes</button>
+    <a class="btn btn-default" href="{{ url_for('FigureModelView.edit', pk=figure.id) }}">Cancel</a>
+  </form>
+  {% endif %}
+  <h3>From the wiki</h3>
+  <pre style="white-space:pre-wrap">{{ candidate.block }}</pre>
+{% endif %}
+</div>
+{% endblock %}

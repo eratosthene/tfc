@@ -30,6 +30,7 @@ USER_AGENT = (
 )
 MIN_DELAY = 2.0
 HALT_SECONDS = 3600
+IMAGE_LIMIT = 10 * 1024 * 1024  # the most one picture may be
 
 
 class FetchError(Exception):
@@ -59,6 +60,50 @@ def http_get(url):
         raise FetchError(f"Could not fetch {url}: HTTP {exc.code}") from exc
     except (urllib.error.URLError, OSError) as exc:
         raise FetchError(f"Could not fetch {url}: {exc}") from exc
+
+
+def on_site(url):
+    """True for an https URL on tfwiki.net or one of its subdomains."""
+    parts = urllib.parse.urlsplit(url)
+    host = (parts.hostname or "").lower()
+    return parts.scheme == "https" and (
+        host == "tfwiki.net" or host.endswith(".tfwiki.net")
+    )
+
+
+class _StayOnSite(urllib.request.HTTPRedirectHandler):
+    """Follow redirects, but never off tfwiki.net."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not on_site(newurl):
+            raise FetchError(f"{req.full_url}: redirected away from tfwiki.net")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def http_get_bytes(url, limit=IMAGE_LIMIT):
+    """(bytes, content type) of an image on tfwiki.net, at most ``limit`` bytes."""
+    if not on_site(url):
+        raise FetchError("Only pictures from tfwiki.net can be downloaded")
+    req = urllib.request.Request(
+        url, headers={"User-Agent": USER_AGENT, "Accept": "image/*"}
+    )
+    try:
+        with urllib.request.build_opener(_StayOnSite).open(req, timeout=60) as resp:
+            kind = resp.headers.get_content_type()
+            if not kind.startswith("image/"):
+                raise FetchError(f"{url}: that is not a picture ({kind})")
+            data = resp.read(limit + 1)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (429, 503):
+            raise RateLimited(f"{url}: HTTP {exc.code}; stopping") from exc
+        if exc.code == 404:
+            raise PageNotFound(f"{url}: no such picture") from exc
+        raise FetchError(f"Could not fetch {url}: HTTP {exc.code}") from exc
+    except (urllib.error.URLError, OSError) as exc:
+        raise FetchError(f"Could not fetch {url}: {exc}") from exc
+    if len(data) > limit:
+        raise FetchError(f"{url}: the picture is larger than {limit // 1048576} MB")
+    return data, kind
 
 
 def normalize_title(title):
@@ -157,10 +202,12 @@ class Fetcher:
         get=http_get,
         sleep=time.sleep,
         wall=time.time,
+        get_bytes=http_get_bytes,
     ):
         self.cache_dir = cache_dir
         self.enabled = enabled
         self._get = get
+        self._get_bytes = get_bytes
         self._throttle = Throttle(
             cache_dir, max(float(delay), MIN_DELAY), halt_seconds, sleep, wall
         )
@@ -200,6 +247,14 @@ class Fetcher:
             f.write(raw)
         os.replace(tmp, path)
         return result
+
+    def download(self, url):
+        """(bytes, content type) of a picture. Never cached: it is saved by the
+        caller, who asked for it. It waits its turn like a page does."""
+        if not self.enabled:
+            raise Disabled("Downloading from tfwiki.net is off (set TFWIKI_ENABLED)")
+        with self._throttle.slot():
+            return self._get_bytes(url)
 
 
 def fetcher_from_config(config, **kwargs):
