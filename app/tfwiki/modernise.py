@@ -5,13 +5,11 @@ Long character pages moved their toys to ``Name/toys``, so a link saved as
 only called rewritable when the toys page really has that ``{{anchor|...}}``.
 """
 
-import re
-import urllib.parse
 from collections import namedtuple
 
 from app.tfwiki import parser
 from app.tfwiki.fetcher import Disabled, FetchError, PageNotFound, RateLimited
-from app.tfwiki.figure import FigureNotFound, read_figure
+from app.tfwiki.figure import FigureNotFound, FigureOnSeveralPages, read_figure
 
 # status is one of the names below; ``new`` is set for "rewrite" only.
 Result = namedtuple("Result", "status detail new")
@@ -22,6 +20,7 @@ REDIRECT = "redirect"  # the page is a redirect, not a toys page: left alone
 HEADING = "heading"  # the fragment matches a heading, not an anchor: left alone
 CASE = "case"  # the anchor differs only in capital letters: left alone
 AMBIGUOUS = "ambiguous"  # more than one entry has that anchor: left alone
+SEVERAL_PAGES = "several_pages"  # a disambiguation page lists more than one that has it
 NO_PAGE = "no_page"
 NO_FIGURE = "no_figure"
 NOT_CACHED = "not_cached"
@@ -35,6 +34,7 @@ LABELS = {
     HEADING: "matches a heading, not an anchor (left alone)",
     CASE: "the anchor differs in capital letters (left alone)",
     AMBIGUOUS: "the anchor is on more than one entry (left alone)",
+    SEVERAL_PAGES: "now a disambiguation page, and several of its pages have it (left alone)",
     NO_PAGE: "the page does not exist on the wiki",
     NO_FIGURE: "no figure for that fragment on the wiki",
     NOT_CACHED: "page not in the cache",
@@ -75,13 +75,6 @@ def old_style(link):
     return bool(fragment) and not parser.TOYS_SUFFIX.search(title)
 
 
-def _same(text):
-    """A fragment or anchor with escapes decoded and separators unified, but
-    with its capital letters: the wiki's anchors are case-sensitive."""
-    text = parser.decode_anchor(urllib.parse.unquote(text))
-    return re.sub(r"[\s_]+", " ", text).strip()
-
-
 def check(fetcher, link):
     """Where the figure a link points at is now. Raises RateLimited, which the
     caller must stop on; every other problem is a Result."""
@@ -95,10 +88,18 @@ def check(fetcher, link):
         raise
     except PageNotFound as error:
         return Result(NO_PAGE, str(error), None)
+    except FigureOnSeveralPages as error:
+        return Result(SEVERAL_PAGES, str(error), None)
     except FigureNotFound as error:
         return Result(NO_FIGURE, str(error), None)
     except (FetchError, parser.ParseError) as error:
         return Result(ERROR, str(error), None)
+    fragment = link.partition("#")[2]
+    if result.get("disambiguated"):
+        # The name is now a disambiguation page and exactly one page it lists has
+        # this section, by exact name: the link belongs on that page.
+        page = result["candidates"][0]["link"].split("#", 1)[0]
+        return Result(REWRITE, result["page"], page + "#" + fragment)
     if not result["moved"]:
         return Result(CURRENT, result["page"], None)
     if not parser.TOYS_SUFFIX.search(result["page"]):
@@ -108,8 +109,7 @@ def check(fetcher, link):
         return Result(HEADING, result["page"], None)
     if len(anchored) > 1:
         return Result(AMBIGUOUS, result["page"], None)
-    fragment = link.partition("#")[2]
-    if not any(_same(fragment) == _same(a) for a in anchored[0]["anchors"]):
+    if not any(parser.same_fragment(fragment, a) for a in anchored[0]["anchors"]):
         return Result(CASE, result["page"], None)
     # Keep the fragment exactly as it was saved (.28-style escapes and all).
     page = anchored[0]["link"].split("#", 1)[0]
