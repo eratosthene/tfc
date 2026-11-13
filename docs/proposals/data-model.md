@@ -146,7 +146,7 @@ Searches still work, by link equality:
   figures Chris still owns, so rows are plain references too.
 
 **Gestalt.** Unchanged `Figure -> Figure`, plus a soft warning (not an error)
-if set on a figure without the Combiner category, and the show page lists
+if set on a figure without the Combiner, Duocon or Duobot category, and the show page lists
 component figures as links.
 
 **Nested franchises.** `franchise.parent_id` (single parent; a tree, not a graph).
