@@ -7,6 +7,8 @@ from app.index import MyIndexView, _by_assoc
 from app.models import (
     Category,
     Character,
+    Continuity,
+    ContinuityFamily,
     Faction,
     Figure,
     Franchise,
@@ -121,9 +123,61 @@ def test_a_parent_franchise_counts_the_figures_below_it(auth_client, captured):
     db.session.flush()
     g1.parent = bw.parent = parent
     db.session.commit()
-    auth_client.get("/")
-    totals = {str(r["franchise"]): r["total"] for r in captured["by_franchise"]}
+    resp = auth_client.get("/")
+    roots = captured["by_franchise"]
+    # Only the top level is listed; G1 and Beast Wars sit below Transformers.
+    assert [str(r["franchise"]) for r in roots] == ["Transformers", "Unused Franchise"]
+    top = roots[0]
     # Two (One, Two) are in G1 and two (Two, Three) in Beast Wars; Two is in both.
-    assert totals["Transformers"] == 3
-    assert totals["G1"] == 2 and totals["Beast Wars"] == 2
-    assert [str(r["franchise"]) for r in captured["by_franchise"]][0] == "Transformers"
+    assert top["total"] == 3
+    assert [(str(c["franchise"]), c["total"]) for c in top["children"]] == [
+        ("G1", 2),
+        ("Beast Wars", 2),
+    ]
+    assert "Sub-franchises of Transformers" in resp.get_data(as_text=True)
+
+
+def test_by_continuity_groups_continuities_into_families(auth_client, captured):
+    fam = ContinuityFamily(name="Aligned")
+    rid = Continuity(name="RID", family=fam)
+    foc = Continuity(name="FOC", family=fam)
+    solo = Continuity(name="Solo")
+    unused = Continuity(name="Unused", family=ContinuityFamily(name="Empty"))
+    db.session.add_all([rid, foc, solo, unused])
+    db.session.flush()
+    chars = [
+        Character(name=n, link="https://tfwiki.net/wiki/" + n, continuity=c)
+        for n, c in (("A", rid), ("B", foc), ("C", solo))
+    ]
+    faction = Faction(name="Autobot")
+    db.session.add_all(chars + [faction])
+    db.session.flush()
+    for name, char in (("f1", 0), ("f2", 0), ("f3", 1), ("f4", 2)):
+        db.session.add(
+            Figure(
+                name=name,
+                release_year=1990,
+                character_new=chars[char],
+                faction=faction,
+            )
+        )
+    db.session.commit()
+    resp = auth_client.get("/")
+    roots = captured["by_continuity"]
+    # Families and family-less continuities share the top level, by name.
+    assert [(n.get("family") or n["continuity"]).name for n in roots] == [
+        "Aligned",
+        "Empty",
+        "Solo",
+    ]
+    aligned = roots[0]
+    assert aligned["total"] == 3
+    assert [(c["continuity"].name, c["total"]) for c in aligned["children"]] == [
+        ("FOC", 1),
+        ("RID", 2),
+    ]
+    assert roots[1]["total"] == 0 and roots[1]["children"] == [
+        {"continuity": unused, "total": 0, "children": []}
+    ]
+    assert roots[2]["total"] == 1
+    assert "Continuities in Aligned" in resp.get_data(as_text=True)

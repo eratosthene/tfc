@@ -7,6 +7,9 @@ from app import db
 from app.franchises import descendant_ids, parent_map
 from app.models import (
     Category,
+    Character,
+    Continuity,
+    ContinuityFamily,
     Faction,
     Figure,
     Franchise,
@@ -31,21 +34,69 @@ def _by_assoc(model, table, key, order_by):
 
 
 def _by_franchise():
-    """Figures per franchise, counting the ones tagged with anything below it."""
+    """The franchise tree: top-level franchises, each with its ``children``.
+
+    A franchise's total counts the figures tagged with it or anything below it.
+    """
     parents = parent_map()
     tagged = defaultdict(set)
     for figure_id, franchise_id in db.session.execute(
         select(figure_franchise.c.figure_id, figure_franchise.c.franchise_id)
     ):
         tagged[franchise_id].add(figure_id)
-    rows = []
+    nodes = {}
     franchises = select(Franchise).order_by(Franchise.start_year, Franchise.id)
     for franchise in db.session.scalars(franchises):
         figures = set()
         for franchise_id in descendant_ids(franchise.id, parents):
             figures |= tagged[franchise_id]
-        rows.append({"franchise": franchise, "total": len(figures)})
-    return rows
+        nodes[franchise.id] = {
+            "franchise": franchise,
+            "total": len(figures),
+            "children": [],
+        }
+    roots = []
+    for franchise_id, node in nodes.items():
+        parent = nodes.get(parents[franchise_id])
+        (parent["children"] if parent else roots).append(node)
+    return roots
+
+
+def _by_continuity():
+    """Continuity families (each with its ``children``) and family-less continuities.
+
+    A family's total counts each of its figures once, however many of its
+    continuities they appear in.
+    """
+    by_continuity = defaultdict(set)
+    for figure_id, continuity_id in db.session.execute(
+        select(Figure.id, Character.continuity_id).join(
+            Character, Figure.character_id_new == Character.id
+        )
+    ):
+        by_continuity[continuity_id].add(figure_id)
+    families = {}
+    for family in db.session.scalars(select(ContinuityFamily)):
+        families[family.id] = {
+            "family": family,
+            "figures": set(),
+            "children": [],
+        }
+    roots = []
+    for continuity in db.session.scalars(select(Continuity).order_by(Continuity.name)):
+        figures = by_continuity[continuity.id]
+        node = {"continuity": continuity, "total": len(figures), "children": []}
+        family = families.get(continuity.family_id)
+        if family:
+            family["children"].append(node)
+            family["figures"] |= figures
+        else:
+            roots.append(node)
+    for family in families.values():
+        family["total"] = len(family.pop("figures"))
+        roots.append(family)
+    roots.sort(key=lambda n: str((n.get("family") or n["continuity"]).name).lower())
+    return roots
 
 
 class MyIndexView(IndexView):
@@ -56,6 +107,7 @@ class MyIndexView(IndexView):
         self.update_redirect()
         num_figures = db.session.query(func.count(Figure.id)).scalar()
         by_franchise = _by_franchise()
+        by_continuity = _by_continuity()
         by_faction = [
             {"faction": obj, "total": total}
             for obj, total in db.session.query(Faction, func.count(Figure.id))
@@ -71,6 +123,7 @@ class MyIndexView(IndexView):
             appbuilder=self.appbuilder,
             num_figures=num_figures,
             by_franchise=by_franchise,
+            by_continuity=by_continuity,
             by_faction=by_faction,
             by_tooling=by_tooling,
             by_category=by_category,
