@@ -398,3 +398,22 @@ def test_the_reference_boxes_are_full_width_and_tall(auth_client, seed):
     for field in ("history_text", "packed_with_text"):
         tag = re.search(r'<textarea[^>]*name="%s"[^>]*>' % field, html).group(0)
         assert 'class="form-control"' in tag and 'rows="8"' in tag
+
+
+def test_the_menu_groups_the_lookup_lists(auth_client, seed):
+    page = auth_client.get("/").get_data(as_text=True)
+    nav = page.split("navbar", 1)[1]
+    for entry in ("Figures", "Add from TFWiki", "Characters", "Classification"):
+        assert entry in nav
+    for group, members in (
+        ("Classification", ("Franchises", "Factions", "Toolings", "Categories")),
+        ("Characters", ("Characters", "Continuities", "Continuity Families")),
+    ):
+        menu = flask_app.appbuilder.menu.find(group)
+        assert [m.name for m in menu.childs] == list(members)
+
+
+def test_the_menu_order(auth_client, seed):
+    names = [m.name for m in flask_app.appbuilder.menu.get_list()]
+    ours = [n for n in names if n != "Security"]
+    assert ours == ["Figures", "Add from TFWiki", "Characters", "Classification"]
