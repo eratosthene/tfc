@@ -200,6 +200,12 @@ anchor is on more than one entry, the page or figure is gone) is left alone and
 listed with the reason. It changes figures' *Link to Figure* and the links of
 their ancestors and pack-mates, and nothing else.
 
+A fragment can also be one the wiki *numbered* because a heading repeats on the page:
+``Darth_Maul#Star_Wars_Transformers_2`` is the second heading called "Star Wars
+Transformers" (the first is under Fiction, the second under Toys). Repeats are counted
+across the whole page, the way MediaWiki does, so such a link is matched to the right
+section.
+
 A name that has since become a **disambiguation page** (``Battletrap`` now lists
 ``Battletrap (G1)``, ``(Cyberverse)``, ``(ROTB)``) is followed too: each page it
 lists is read, and if exactly one has a section with that exact name (capitals

@@ -208,7 +208,9 @@ def entries(wikitext, title):
     ``anchors``, ``header`` (the first line, with the name), ``code`` (Bp-
     template code or None), ``bullets`` [(label, value)], ``paragraphs``
     (prose lines), ``components`` (the ``:{{Bp-..}}`` parts of a multi-pack),
-    ``picture`` (first File name or None) and ``lines`` (the raw block).
+    ``picture`` (first File name or None) and ``lines`` (the raw block), and
+    ``heading_ids``: the wiki's anchor ids for the toyline and sub-heading, which
+    number a repeated heading (``Name``, ``Name_2``) across the whole page.
 
     A toyline heading with no such figure line under it (a character whose toys
     are described in prose, one section per toyline) gives one entry for the
@@ -221,23 +223,26 @@ def entries(wikitext, title):
     lines = wikitext.splitlines()
     start, end, has_toys = _toys_range(lines)
     top = 3 if has_toys else 2  # the heading level of a toyline
-    starts, heads = [], {}
+    ids = heading_ids(lines)
+    starts, heads, where = [], {}, {}
     heading = sub = ""
+    hline = sline = None  # the lines of the current toyline and sub-heading
     for i in range(start, end):
         line = lines[i]
         h = HEADING.match(line)
         if h:
             level = len(h.group(1))
             if level == top:
-                heading, sub = clean(h.group(2)), ""
+                heading, sub, hline, sline = clean(h.group(2)), "", i, None
             elif level > top:
-                sub = clean(h.group(2))
+                sub, sline = clean(h.group(2)), i
             heads[i] = (level, heading, sub)
             continue
         if line.lstrip().startswith(":") and ITEM_NEW.search(line):
             continue  # a part of the multi-pack above
         if ITEM_NEW.search(line) or ITEM_OLD.match(line):
             starts.append((i, heading, sub))
+            where[i] = (hline, sline)
     out = []
     for n, (i, heading, sub) in enumerate(starts):
         floor = starts[n - 1][0] + 1 if n else start
@@ -249,7 +254,8 @@ def entries(wikitext, title):
         lead.reverse()
         stop = starts[n + 1][0] if n + 1 < len(starts) else end
         stop = min([stop] + [j for j in heads if i < j < stop])
-        out.append((i, _entry(lines[i:stop], lead, heading, sub, title)))
+        found = [ids[x] for x in where[i] if x is not None]
+        out.append((i, _entry(lines[i:stop], lead, heading, sub, title, found)))
     for i, (level, heading, _sub) in heads.items():
         if level != top or not has_toys:  # prose sections only under ==Toys==
             continue
@@ -260,8 +266,26 @@ def entries(wikitext, title):
             continue
         block = lines[i + 1 : stop]
         if any(line.strip() and not SPACER.match(line) for line in block):
-            out.append((i, _entry(block, [], heading, "", title)))
+            out.append((i, _entry(block, [], heading, "", title, [ids[i]])))
     return [entry for _i, entry in sorted(out, key=lambda pair: pair[0])]
+
+
+def heading_ids(lines):
+    """{line number: the wiki's anchor id} for every heading on the page.
+
+    MediaWiki makes a repeated heading's id unique by numbering it: the first
+    ``Star Wars Transformers`` is ``Star_Wars_Transformers`` and the second (a toyline
+    under ``==Toys==``, after one under ``==Fiction==``) is
+    ``Star_Wars_Transformers_2``, so a link to the second needs the whole page counted.
+    """
+    seen, out = {}, {}
+    for i, line in enumerate(lines):
+        h = HEADING.match(line)
+        if h:
+            base = normalize_title(clean(h.group(2)))
+            seen[base] = seen.get(base, 0) + 1
+            out[i] = base if seen[base] == 1 else "%s_%d" % (base, seen[base])
+    return out
 
 
 def _toys_range(lines):
@@ -278,7 +302,7 @@ def _toys_range(lines):
     return 0, len(lines), False
 
 
-def _entry(block, lead, heading, sub, title):
+def _entry(block, lead, heading, sub, title, heading_ids=()):
     first = block[0]
     new = ITEM_NEW.search(first)
     old = ITEM_OLD.match(first)
@@ -286,6 +310,7 @@ def _entry(block, lead, heading, sub, title):
     entry = {
         "heading": heading,
         "subheading": sub,
+        "heading_ids": list(heading_ids),
         "anchors": [m.group(1).strip() for line in lead for m in ANCHOR.finditer(line)],
         "code": new.group(1).lower() if new else None,
         "header": new.group(2) if new else old.group(1) if old else "",
@@ -364,7 +389,8 @@ def matches(entry, fragment):
     want = norm(fragment)
     if any(norm(a) == want for a in entry["anchors"]):
         return "anchor"
-    if want in (norm(entry["heading"]), norm(entry["subheading"])):
+    names = [entry["heading"], entry["subheading"]] + entry["heading_ids"]
+    if want in (norm(n) for n in names):
         return "heading"
     return None
 

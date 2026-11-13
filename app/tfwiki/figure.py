@@ -116,6 +116,7 @@ def _read(fetcher, url, factions, search_all, fields, via):
                 "matched_by": how,
                 "heading": entry["heading"],
                 "subheading": entry["subheading"],
+                "heading_ids": entry["heading_ids"],
                 "anchors": entry["anchors"],
                 "link": link,
                 "fields": suggestions,
@@ -151,10 +152,11 @@ def _through_disambiguation(
         except (FigureNotFound, PageNotFound):
             continue  # that namesake has no such section, or its page is gone
         for candidate in found["candidates"]:
-            names = candidate["anchors"] + [
-                candidate["heading"],
-                candidate["subheading"],
-            ]
+            names = (
+                candidate["anchors"]
+                + [candidate["heading"], candidate["subheading"]]
+                + candidate["heading_ids"]
+            )
             if any(n and parser.same_fragment(fragment, n) for n in names):
                 hits.append((found, candidate))
     if len(hits) == 1:
