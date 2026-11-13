@@ -11,7 +11,7 @@ from flask_appbuilder import BaseView, expose, has_access
 from flask_wtf import FlaskForm
 from sqlalchemy import select
 
-from app import app, db
+from app import app, db, pictures
 from app.models import (
     Category,
     Character,
@@ -206,6 +206,7 @@ def suggest(result, index, lead):
             "continuity_id": continuity.id if continuity else "",
             "continuity_name": char["qualifier"] or "",
             "alias": fields["toyline"] or "",
+            "image": "",
         },
         "notes": notes,
         "existing_character": existing,
@@ -268,6 +269,7 @@ def clean_form(form):
         "continuity_id": one("continuity_id"),
         "continuity_name": one("continuity_name"),
         "alias": one("alias"),
+        "image": one("image"),
     }
 
 
@@ -359,6 +361,10 @@ def build(values, add_copy, remember):
                         )
                     ) or Continuity(name=values["continuity_name"])
                 character.continuity = continuity
+    if values["image"] and not pictures.is_pending(values["image"]):
+        errors.append(
+            "The downloaded picture is no longer there; use the picture button again."
+        )
     if errors:
         db.session.rollback()
         return None, errors
@@ -373,6 +379,7 @@ def build(values, add_copy, remember):
         takara_id=values["takara_id"] or None,
         exclusive_to=values["exclusive_to"] or None,
         condition=values["condition"] or None,
+        image=values["image"] or None,
         character_new=character,
         references=references,
     )
@@ -436,6 +443,9 @@ class AddFromTFWikiView(BaseView):
             result=result,
             errors=list(errors),
             add_copy=bool(values and values.get("_add_copy")),
+            pending_thumbnail=pictures.thumbnail_name(guess["values"]["image"])
+            if guess["values"].get("image")
+            else "",
             **guess,
             **options(),
         )
@@ -464,6 +474,57 @@ class AddFromTFWikiView(BaseView):
         if len(result["candidates"]) == 1:
             return self._review(url, 0, False)
         return self._show("choose", url=url, result=result)
+
+    def _picture_form(self):
+        """The review form's state, for the picture buttons, which post it all."""
+        url = (request.form.get("url") or "").strip()
+        pick = request.form.get("pick", "0")
+        values = clean_form(request.form)
+        values["_add_copy"] = bool(request.form.get("add_copy"))
+        return url, int(pick) if pick.isdigit() else 0, values
+
+    @expose("/picture", methods=["POST"])
+    @has_access
+    def picture(self):
+        """Download the wiki's picture for the figure, on request only."""
+        if not CsrfOnly().validate_on_submit():
+            return self._expired()
+        url, pick, values = self._picture_form()
+        try:
+            found, _lead = find(url, False)
+            picture = found["candidates"][pick]["fields"]["picture"]
+        except (Problem, IndexError):
+            return self._review(url, pick, False, values)  # says what is wrong
+        errors = []
+        if not picture:
+            errors.append("The wiki has no picture for this figure.")
+        else:
+            try:
+                saved = pictures.download_picture(make_fetcher(), picture)
+            except Disabled:
+                errors.append(
+                    "Downloading from tfwiki.net is off. Set TFWIKI_ENABLED = True "
+                    "in config.py to use this."
+                )
+            except RateLimited as error:
+                errors.append("tfwiki.net asked us to slow down. %s" % error)
+            except (FetchError, ValueError) as error:
+                errors.append("Could not use the picture: %s" % error)
+            else:
+                pictures.discard(values["image"])  # one chosen earlier, never used
+                values["image"] = saved
+        return self._review(url, pick, False, values, errors)
+
+    @expose("/discard_picture", methods=["POST"])
+    @has_access
+    def discard_picture(self):
+        """Throw away a downloaded picture that no figure uses yet."""
+        if not CsrfOnly().validate_on_submit():
+            return self._expired()
+        url, pick, values = self._picture_form()
+        pictures.discard(values["image"])
+        values["image"] = ""
+        return self._review(url, pick, False, values)
 
     @expose("/save", methods=["POST"])
     @has_access
