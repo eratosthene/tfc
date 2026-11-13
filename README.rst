@@ -209,6 +209,19 @@ does, it is reported as no figure. Add from TFWiki and the Edit page's refresh f
 a disambiguation the same way. This reads every page the disambiguation page lists
 (cached afterwards), so a link like this costs a few requests when fetching is on.
 
+Characters have the same problem: a character's own link names a wiki page that may
+since have been renamed (``Alpha_Trion_(G1)`` is now ``Alpha_Trion``) or turned into a
+disambiguation page (``Battletrap``). ``flask modernise-characters`` fixes those, with
+the same ``--fetch``, ``--limit``, ``--delay``, ``--apply`` and ``--json`` options and
+the same rules about the network. A renamed page is rewritten to its current title. A
+disambiguation page is rewritten to the page it lists that the character's **own
+figures** are on (their links are resolved first, as above), and only if exactly one is;
+otherwise it is listed as undecided. A link another character already has is never taken
+(it is listed as a conflict, for you to merge by hand), and everything else is left alone
+with the reason. It reads one page per character, so on a fresh cache it needs a few
+hundred requests; run it in ``--limit`` batches. Run ``modernise-links`` first if you like,
+but it is not required.
+
 It never fetches by default: it reads the cache (``TFWIKI_CACHE_DIR``) and says
 how many pages are missing. Without ``--apply`` it saves nothing::
 
