@@ -1,0 +1,170 @@
+{% extends "appbuilder/base.html" %}
+{% macro note(text) %}{% if text %}<p class="help-block"><small>{{ text }}</small></p>{% endif %}{% endmacro %}
+{% macro csrf() %}{{ csrf_form.hidden_tag() }}{% endmacro %}
+{% block content %}
+<div class="container">
+  <h1>Add a figure from TFWiki</h1>
+
+{% if step == "paste" %}
+  <p>Paste a link to a figure on tfwiki.net, for example
+    <code>https://tfwiki.net/wiki/Alpha_Trion/toys#Legacy</code>. Nothing is saved until you
+    have reviewed the suggestions on the next page. If the page is already in the cache
+    nothing is fetched; fetching from tfwiki.net only happens when
+    <code>TFWIKI_ENABLED</code> is on, one page at a time.</p>
+  {% if problem %}
+  <div class="alert alert-danger">
+    {{ problem }}
+    {% if problem.hints %}
+    <p>This page has these figure sections:</p>
+    <ul>{% for h in problem.hints %}<li>{{ h }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+  {% endif %}
+  <form method="post" action="{{ url_for('AddFromTFWikiView.lookup') }}" class="form-horizontal">
+    {{ csrf() }}
+    <div class="form-group">
+      <label class="col-sm-2 control-label" for="url">tfwiki.net link</label>
+      <div class="col-sm-10">
+        <input type="text" class="form-control" id="url" name="url" value="{{ url }}"
+               placeholder="https://tfwiki.net/wiki/..." autofocus/>
+        <div class="checkbox">
+          <label><input type="checkbox" name="refresh" value="1"/> Refresh from the wiki
+            (ignore the cached copy; needs fetching to be on)</label>
+        </div>
+      </div>
+    </div>
+    <div class="form-group"><div class="col-sm-offset-2 col-sm-10">
+      <button type="submit" class="btn btn-primary">Look up</button>
+      <a class="btn btn-default" href="{{ url_for('FigureModelView.add') }}">Add without the wiki</a>
+    </div></div>
+  </form>
+
+{% elif step == "choose" %}
+  <p>{{ result.page }} has {{ result.candidates|length }} figures under that link. Which one?</p>
+  {% for c in result.candidates %}
+  <form method="post" action="{{ url_for('AddFromTFWikiView.lookup') }}" class="well">
+    {{ csrf() }}
+    <input type="hidden" name="url" value="{{ url }}"/>
+    <input type="hidden" name="pick" value="{{ loop.index0 }}"/>
+    <strong>{{ c.fields.name or "(no name)" }}</strong>
+    {% if c.fields.release_year %}({{ c.fields.release_year }}){% endif %}
+    {% if c.fields.classes %}&middot; {{ c.fields.classes|join(", ") }}{% endif %}
+    {% if c.fields.toyline %}&middot; {{ c.fields.toyline }}{% endif %}
+    {% if c.fields.anchors %}&middot; #{{ c.fields.anchors|join(", #") }}{% endif %}
+    <button type="submit" class="btn btn-primary btn-sm pull-right">Use this one</button>
+  </form>
+  {% endfor %}
+  <a href="{{ url_for('AddFromTFWikiView.start') }}">Start again</a>
+
+{% else %}
+  {% if errors %}
+  <div class="alert alert-danger"><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+  {% endif %}
+  {% if result.moved %}
+  <div class="alert alert-info">The figure is on <a href="{{ candidate.link }}">{{ result.page }}</a>
+    ({{ candidate.link }}); the link was updated to that page.</div>
+  {% endif %}
+  {% if duplicates %}
+  <div class="alert alert-warning">
+    A figure with this link is already in the collection:
+    {% for d in duplicates %}<a href="{{ url_for('FigureModelView.show', pk=d.id) }}">{{ d.name }} #{{ d.id }}</a>{% if not loop.last %}, {% endif %}{% endfor %}.
+    Nothing existing is changed. To add another copy, tick the box at the bottom.
+  </div>
+  {% endif %}
+  <div class="row">
+  <form method="post" action="{{ url_for('AddFromTFWikiView.save') }}" class="col-md-7">
+    {{ csrf() }}
+    <input type="hidden" name="url" value="{{ url }}"/>
+    <input type="hidden" name="pick" value="{{ pick }}"/>
+
+    <div class="form-group"><label for="name">Name</label>
+      <input class="form-control" id="name" name="name" value="{{ values.name }}"/>
+      {{ note("from the wiki heading line; pack names are common, so check it") }}</div>
+    <div class="form-group"><label for="release_year">Release year</label>
+      <input class="form-control" id="release_year" name="release_year" value="{{ values.release_year }}"/></div>
+    <div class="form-group"><label for="faction">Faction</label>
+      <select class="form-control" id="faction" name="faction">
+        <option value="">(choose)</option>
+        {% for f in factions %}<option value="{{ f.id }}" {{ "selected" if values.faction|string == f.id|string }}>{{ f.name }}</option>{% endfor %}
+      </select>{{ note(notes.faction) }}</div>
+
+    <fieldset><legend>Character</legend>
+      <div class="form-group"><label for="character_id">Character</label>
+        <select class="form-control" id="character_id" name="character_id">
+          <option value="">(new character from this page, below)</option>
+          {% for c in characters %}<option value="{{ c.id }}" {{ "selected" if values.character_id|string == c.id|string }}>{{ c.name }}{% if c.continuity %} ({{ c.continuity.name }}){% endif %}</option>{% endfor %}
+        </select>
+        {% if existing_character %}{{ note("This character is already in the collection and is used as it is. " ~ notes.character) }}{% endif %}</div>
+      <div class="form-group"><label for="character_name">New character: name</label>
+        <input class="form-control" id="character_name" name="character_name" value="{{ values.character_name }}"/></div>
+      <div class="form-group"><label for="character_link">New character: wiki page</label>
+        <input class="form-control" id="character_link" name="character_link" value="{{ values.character_link }}"/></div>
+      <div class="form-group"><label for="continuity_id">New character: continuity</label>
+        <select class="form-control" id="continuity_id" name="continuity_id">
+          <option value="">(none, fill in later)</option>
+          {% for c in continuities %}<option value="{{ c.id }}" {{ "selected" if values.continuity_id|string == c.id|string }}>{{ c.name }}{% if c.full_name %} - {{ c.full_name }}{% endif %}</option>{% endfor %}
+          <option value="new" {{ "selected" if values.continuity_id == "new" }}>(a new one, named below)</option>
+        </select>
+        {% if qualifier and not values.continuity_id %}{{ note("The page name ends in (" ~ qualifier ~ "), which is not a continuity yet. Choose 'a new one' to add it.") }}{% endif %}
+        <input class="form-control" name="continuity_name" value="{{ values.continuity_name }}" placeholder="New continuity name"/></div>
+      {% if lead %}{{ note("Character page: " ~ lead.sentence) }}{% endif %}
+    </fieldset>
+
+    <div class="form-group"><label for="franchise">Franchise(s)</label>
+      <select multiple class="form-control" id="franchise" name="franchise" size="6">
+        {% for f in franchises %}<option value="{{ f.id }}" {{ "selected" if f.id in values.franchise }}>{{ f.name }}</option>{% endfor %}
+      </select>{{ note(notes.franchise) }}
+      <div class="checkbox"><label><input type="checkbox" name="remember" value="1"/>
+        Remember that the wiki name <input name="alias" value="{{ values.alias }}" size="24"/> means the single franchise selected</label></div></div>
+    <div class="form-group"><label for="tooling">Tooling</label>
+      <select multiple class="form-control" id="tooling" name="tooling" size="4">
+        {% for t in toolings %}<option value="{{ t.id }}" {{ "selected" if t.id in values.tooling }}>{{ t.name }}</option>{% endfor %}
+      </select>{{ note(notes.tooling) }}</div>
+    <div class="form-group"><label for="categories">Categories</label>
+      <select multiple class="form-control" id="categories" name="categories" size="4">
+        {% for c in categories %}<option value="{{ c.id }}" {{ "selected" if c.id in values.categories }}>{{ c.name }}</option>{% endfor %}
+      </select>{{ note(notes.categories) }}</div>
+    <div class="form-group"><label for="link">Link to Figure</label>
+      <input class="form-control" id="link" name="link" value="{{ values.link }}"/></div>
+    <div class="form-group"><label for="accessories_text">Accessories</label>
+      <textarea class="form-control" id="accessories_text" name="accessories_text" rows="3">{{ values.accessories_text }}</textarea>
+      {{ note("comma-separated") }}</div>
+    <div class="form-group"><label for="hasbro_id">Hasbro ID</label>
+      <input class="form-control" id="hasbro_id" name="hasbro_id" value="{{ values.hasbro_id }}"/></div>
+    <div class="form-group"><label for="takara_id">Takara ID</label>
+      <input class="form-control" id="takara_id" name="takara_id" value="{{ values.takara_id }}"/></div>
+    <div class="form-group"><label for="exclusive_to">Exclusive to</label>
+      <input class="form-control" id="exclusive_to" name="exclusive_to" value="{{ values.exclusive_to }}"/></div>
+    <div class="form-group"><label for="history_text">Model History</label>
+      <textarea class="form-control" id="history_text" name="history_text" rows="6">{{ values.history_text }}</textarea>
+      {{ note("One ancestor per line: Name | link") }}
+      {% for a in ancestors %}{{ note("guessed from: " ~ a.evidence) }}{% endfor %}</div>
+    <div class="form-group"><label for="packed_with_text">Packed With</label>
+      <textarea class="form-control" id="packed_with_text" name="packed_with_text" rows="6">{{ values.packed_with_text }}</textarea>
+      {{ note("One per line: Name | link") }}
+      {% for p in packed_with %}{{ note("guessed from: " ~ p.evidence) }}{% endfor %}</div>
+    <div class="form-group"><label for="quantity">Quantity</label>
+      <input class="form-control" id="quantity" name="quantity" value="{{ values.quantity }}"/></div>
+    <div class="form-group"><label for="condition">Condition</label>
+      <input class="form-control" id="condition" name="condition" value="{{ values.condition }}"/></div>
+    {% if duplicates %}
+    <div class="checkbox"><label><input type="checkbox" name="add_copy" value="1" {{ "checked" if add_copy }}/> Add another copy (a new figure; the existing one is untouched)</label></div>
+    {% endif %}
+    <button type="submit" class="btn btn-primary">Add figure</button>
+    <a class="btn btn-default" href="{{ url_for('AddFromTFWikiView.start') }}">Cancel</a>
+  </form>
+
+  <div class="col-md-5">
+    <h3>From the wiki</h3>
+    <p>{{ result.page }}{% if candidate.matched_by %} (matched by {{ candidate.matched_by }}){% endif %}</p>
+    {% if picture %}
+    <p><a href="{{ picture.page }}" target="_blank" rel="noopener">{{ picture.file }}</a><br/>
+      <img src="{{ picture.url }}" alt="{{ picture.file }}" class="img-responsive" style="max-height:240px"/>
+      <small>Shown from tfwiki.net; nothing is saved from it.</small></p>
+    {% endif %}
+    <pre style="white-space:pre-wrap">{{ candidate.block }}</pre>
+  </div>
+  </div>
+{% endif %}
+</div>
+{% endblock %}

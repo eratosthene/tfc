@@ -86,7 +86,7 @@ def check(fetcher, link):
     """Where the figure a link points at is now. Raises RateLimited, which the
     caller must stop on; every other problem is a Result."""
     try:
-        result = read_figure(fetcher, link, search_all=True)
+        result = read_figure(fetcher, link, search_all=True, fields=False)
     except OutOfBudget as error:
         return Result(LIMIT, str(error), None)
     except Disabled as error:

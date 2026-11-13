@@ -448,3 +448,142 @@ def test_the_year_may_be_on_a_later_name():
     assert f["release_year"] == 2001 and f["names"] == ["Go Foo", "Foo"]
     entry["header"] = "'''Foo''' (?) / '''Bar''' (?)"
     assert parser.figure_fields(entry, "Foo")["release_year"] is None
+
+
+# --- the lead sentence of a character page -----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "page, expected",
+    [
+        ("Omega_Prime", {"family": "Robots in Disguise", "faction": "Autobot"}),
+        ("Bruticus_(G1)", {"family": "Generation 1", "faction": "Decepticon"}),
+        (
+            "Blaster_(FOC)",
+            {"family": "Aligned", "faction": "Autobot", "portion": "Fall of Cybertron"},
+        ),
+        # The link target has "Fight! Super..." in it: that "!" does not end a sentence.
+        (
+            "Boater",
+            {"family": "Generation 1", "faction": "Autobot", "portion": "Victory"},
+        ),
+    ],
+)
+def test_the_lead_sentence_of_recorded_pages(fetcher, page, expected):
+    found = parser.lead(fetcher.page(page)[1])
+    assert {k: v for k, v in found.items() if k != "sentence"} == expected
+    assert found["sentence"].startswith(":") and " is a" in found["sentence"]
+    assert "continuity family" in found["sentence"]
+
+
+def test_a_page_that_only_mentions_a_family_later_has_no_lead(fetcher):
+    # Alpha Trion's page names the Aligned family in a paragraph about his history.
+    assert parser.lead(fetcher.page("Alpha_Trion_(G1)")[1]) is None
+    assert parser.lead(fetcher.page("Alpha_Trion/toys")[1]) is None
+
+
+def test_lead_on_small_texts():
+    lead = parser.lead
+    assert lead("") is None
+    assert lead("Bare [[continuity family]] link.") is None
+    found = lead(
+        "Earlier text. X is a [[Thing]] from the [[Foo continuity family]]. More."
+    )
+    assert found == {
+        "sentence": "X is a Thing from the Foo continuity family.",
+        "family": "Foo",
+    }
+    assert (
+        lead("X is an [[Autobot]] from the [[Foo continuity family|Foo]].")["faction"]
+        == "Autobot"
+    )
+    assert "faction" not in lead(
+        "X is an [[Autobot]] from the [[Foo continuity family]].", ("Maximal",)
+    )
+    assert lead("X was mentioned in the [[Foo continuity family]].") is None
+
+
+@pytest.mark.parametrize(
+    "line, expected",
+    [
+        # Real sentences from pages in the cache.
+        (
+            ":''The Air Warriors are [[Decepticon]]s from the [[Generation 1 continuity family]].''",
+            {"family": "Generation 1", "faction": "Decepticon"},
+        ),
+        (
+            ":''Blaster is an evil [[Autobot]] from the [[Transformers: Shattered Glass (franchise)|Shattered Glass]] [[continuity family]].''",
+            {"family": "Shattered Glass", "faction": "Autobot"},
+        ),
+        (
+            ":''Buzzsaw is a [[Decepticon]] from the [[Transformers: Revenge of the Fallen (franchise)|Revenge of the Fallen]] portion of the [[Live-action film series|live-action film]] [[continuity family]].''",
+            {
+                "family": "live-action film",
+                "faction": "Decepticon",
+                "portion": "Revenge of the Fallen",
+            },
+        ),
+        (
+            ":''8-Trax is an [[Autobot]] from [[Stranger Things]] (via [[Transformers Collaborative|Collaborative]]).''",
+            None,
+        ),
+    ],
+)
+def test_lead_sentences_from_the_wild(line, expected):
+    found = parser.lead(line)
+    if expected is None:
+        assert found is None
+    else:
+        assert {k: v for k, v in found.items() if k != "sentence"} == expected
+
+
+# --- toylines described in prose (no figure line) ----------------------------------------
+
+
+PROSE_PAGE = """Intro.
+==Toys==
+===''Line A''===
+[[File:A-toy.jpg|thumb]]
+:''Part of the second wave of A toys, this is a [[redeco]] of [[Other (G1)/toys#A|Other]].''
+:''Hasbro ID number'': '''E1234'''
+===''Line B''===
+{{anchor|BOne}}
+<ul class="iconlist">{{Bp-a1|'''Bee''' (Deluxe Class, 2001)}}</ul>
+:*''Accessories'': Rifle
+====Sub heading====
+:A paragraph under B.
+===''Line C''===
+{{-}}
+===''Line D''===
+:''A prose line at the end.''
+==Other section==
+Text.
+"""
+
+
+def test_a_toyline_with_no_figure_line_is_one_entry_for_its_section():
+    found = parser.entries(PROSE_PAGE, "Mover (G1)")
+    assert [(e["heading"], bool(e["header"])) for e in found] == [
+        ("Line A", False),  # prose only: a section entry
+        ("Line B", True),  # a real figure line: no section entry for B as well
+        ("Line D", False),
+    ]  # Line C has nothing but a spacer, so it is skipped
+    section = found[0]
+    assert section["code"] is None and section["anchors"] == []
+    assert section["bullets"] == [("Hasbro ID number", "'''E1234'''")]
+    assert section["paragraphs"] and section["picture"] == "A-toy.jpg"
+    assert "A-toy.jpg" in "\n".join(section["lines"])
+
+
+def test_a_section_entry_makes_fields_without_a_name():
+    section = parser.entries(PROSE_PAGE, "Mover (G1)")[0]
+    fields = parser.figure_fields(section, "Mover (G1)")
+    assert fields["name"] == "" and fields["release_year"] is None
+    assert fields["hasbro_id"] == "E1234" and fields["toyline"] == "Line A"
+    assert fields["tooling"]["values"] == ["Redeco"]
+
+
+def test_a_link_to_a_prose_toyline_matches_by_heading():
+    section = parser.entries(PROSE_PAGE, "Mover (G1)")[0]
+    assert parser.matches(section, "Line_A") == "heading"
+    assert parser.matches(section, "Line B") is None
