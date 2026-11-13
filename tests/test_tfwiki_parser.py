@@ -587,3 +587,63 @@ def test_a_link_to_a_prose_toyline_matches_by_heading():
     section = parser.entries(PROSE_PAGE, "Mover (G1)")[0]
     assert parser.matches(section, "Line_A") == "heading"
     assert parser.matches(section, "Line B") is None
+
+
+# --- a toys page whose toylines are level-2 headings (no ==Toys== heading) -----------------
+
+# The shape of Hot Rod (G1)/toys: every toyline is its own ==heading==, and some figures
+# are old-style "*'''Name''' (...)" lines.
+LEVEL_TWO_PAGE = """Intro text.
+==''The Transformers''==
+*'''Hot Rod''' (Original, 1986)
+**''Accessories:'' Rifle
+==''Vintage G1''==
+[[File:Walmart-Vintage-G1-Hot-Rod.jpg|thumb|Till all are bought!]]
+*'''Hot Rod''' (Walmart exclusive reissue, 2018)
+**''Accessories:'' 2 photon lasers
+:In a very unexpected turn, the toy was reissued as a [[Walmart]] exclusive.
+{{--}}
+==''Studio Series''==
+<ul class="iconlist">{{Bp-a1|'''Autobot Hot Rod''' (Voyager Class, [[2020]]-[[2021]])}}</ul>
+:*''Hasbro ID number'': '''86-04'''
+==Notes==
+Nothing here is a figure.
+"""
+
+
+def test_level_two_toylines_are_the_headings_on_a_page_with_no_toys_heading():
+    found = parser.entries(LEVEL_TWO_PAGE, "Hot Rod (G1)/toys")
+    assert [e["heading"] for e in found] == [
+        "The Transformers",
+        "Vintage G1",
+        "Studio Series",
+    ]
+    assert [e["header"].split(" (")[0] for e in found] == [
+        "'''Hot Rod'''",
+        "'''Hot Rod'''",
+        "'''Autobot Hot Rod'''",
+    ]
+    vintage = found[1]
+    assert parser.matches(vintage, "Vintage_G1") == "heading"
+    assert vintage["picture"] == "Walmart-Vintage-G1-Hot-Rod.jpg"
+    fields = parser.figure_fields(vintage, "Hot Rod (G1)/toys")
+    assert fields["name"] == "Hot Rod" and fields["release_year"] == 2018
+    assert (
+        fields["toyline"] == "Vintage G1" and fields["accessories"] == "2 photon lasers"
+    )
+    assert fields["classes"] == ["Walmart exclusive reissue"]
+
+
+def test_without_a_toys_heading_prose_sections_are_not_figures():
+    page = "==Biography==\n===Early life===\nSome prose.\n:''A quote.''\n==Notes==\nMore prose.\n"
+    assert parser.entries(page, "Someone") == []
+
+
+def test_a_link_to_a_level_two_toyline_finds_the_figure(tmp_path):
+    cache_pages(tmp_path, {"Hot_Rod_(G1)/toys": LEVEL_TWO_PAGE})
+    fetcher = Fetcher(str(tmp_path), get=lambda url: pytest.fail("no network: " + url))
+    result = read_figure(fetcher, WIKI + "Hot_Rod_(G1)/toys#Vintage_G1")
+    (candidate,) = result["candidates"]
+    assert candidate["matched_by"] == "heading"
+    assert candidate["link"] == WIKI + "Hot_Rod_(G1)/toys#Vintage_G1"
+    assert candidate["fields"]["release_year"] == 2018

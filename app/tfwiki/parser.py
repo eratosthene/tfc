@@ -213,9 +213,14 @@ def entries(wikitext, title):
     A toyline heading with no such figure line under it (a character whose toys
     are described in prose, one section per toyline) gives one entry for the
     section, with an empty ``header`` and ``code`` None.
+
+    Toylines are ``===level 3===`` headings under a ``==Toys==`` heading; a page
+    with no such heading (a long toys page where every toyline is its own
+    ``==level 2==``) is read whole, with level 2 as the toyline.
     """
     lines = wikitext.splitlines()
-    start, end = _toys_range(lines)
+    start, end, has_toys = _toys_range(lines)
+    top = 3 if has_toys else 2  # the heading level of a toyline
     starts, heads = [], {}
     heading = sub = ""
     for i in range(start, end):
@@ -223,9 +228,9 @@ def entries(wikitext, title):
         h = HEADING.match(line)
         if h:
             level = len(h.group(1))
-            if level == 3:
+            if level == top:
                 heading, sub = clean(h.group(2)), ""
-            elif level > 3:
+            elif level > top:
                 sub = clean(h.group(2))
             heads[i] = (level, heading, sub)
             continue
@@ -246,10 +251,10 @@ def entries(wikitext, title):
         stop = min([stop] + [j for j in heads if i < j < stop])
         out.append((i, _entry(lines[i:stop], lead, heading, sub, title)))
     for i, (level, heading, _sub) in heads.items():
-        if level != 3:
+        if level != top or not has_toys:  # prose sections only under ==Toys==
             continue
         stop = min(
-            [j for j, (lvl, _h, _s) in heads.items() if j > i and lvl <= 3] + [end]
+            [j for j, (lvl, _h, _s) in heads.items() if j > i and lvl <= top] + [end]
         )
         if any(i < s < stop for s, _h, _sub2 in starts):
             continue
@@ -265,10 +270,12 @@ def _toys_range(lines):
         h = HEADING.match(line)
         if h and len(h.group(1)) == 2:
             if begin is not None:
-                return begin, i
+                return begin, i, True
             if clean(h.group(2)).lower() == "toys":
                 begin = i + 1
-    return (begin, len(lines)) if begin is not None else (0, len(lines))
+    if begin is not None:
+        return begin, len(lines), True
+    return 0, len(lines), False
 
 
 def _entry(block, lead, heading, sub, title):
