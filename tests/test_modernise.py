@@ -98,10 +98,16 @@ def test_old_style(link, expected):
 
 
 def test_the_alpha_trion_link_moves_to_the_toys_page(recorded):
+    # "Legacy" is a heading on the toys page (not an {{anchor}}), and the wiki gives a
+    # heading an id of the same name, so the link can move there.
     result = m.check(recorded, WIKI + "Alpha_Trion_(G1)#Legacy")
-    # Legacy is a heading on the toys page, not an {{anchor}}, so it is left alone.
-    assert result.status == m.HEADING
-    assert result.new is None
+    assert result.status == m.REWRITE
+    assert result.new == WIKI + "Alpha_Trion/toys#Legacy"
+
+
+def test_a_heading_with_capitals_that_differ_is_left_alone(recorded):
+    result = m.check(recorded, WIKI + "Alpha_Trion_(G1)#legacy")
+    assert result.status == m.CASE and result.new is None
 
 
 def test_an_anchor_on_the_toys_page_is_rewritten_keeping_the_fragment(recorded):
@@ -187,6 +193,10 @@ def test_an_anchor_on_both_toys_pages_is_ambiguous():
     wiki = two_toys_pages([entry("Same")], [entry("Same")])
     result = m.check(wiki, WIKI + "Name_(G1)#Same")
     assert result.status == m.AMBIGUOUS and result.new is None
+    assert (
+        "Name_(G1)/toys" in result.detail
+        and "Name_(G1)/Generations_toys" in result.detail
+    )
 
 
 def test_the_figure_reader_still_stops_at_the_first_toys_page_by_default():
@@ -237,12 +247,29 @@ def test_a_link_to_a_numbered_repeated_heading_on_the_page_itself_is_current():
     )
 
 
-def test_a_redirect_is_not_a_move_to_a_toys_page():
+def test_a_renamed_page_is_followed_to_its_current_title():
+    # Direct-Hit_(G1) is now Direct-Hit, and Doublecrosser is Doublecrosser (Earthrise):
+    # a redirect, not a toys page. The section is there by exact name, so the link moves.
     wiki = Fake({"Old_Name": ("New Name (G1)", toys(entry("Thing")))})
-    assert m.check(wiki, WIKI + "Old_Name#Thing").status == m.REDIRECT
+    result = m.check(wiki, WIKI + "Old_Name#Thing")
+    assert result.status == m.REWRITE
+    assert result.new == WIKI + "New_Name_(G1)#Thing"
 
 
-def test_an_anchor_on_two_entries_is_ambiguous():
+def test_a_redirect_whose_section_is_only_found_ignoring_capitals_is_left_alone():
+    wiki = Fake({"Old_Name": ("New Name (G1)", toys(entry("Thing")))})
+    result = m.check(wiki, WIKI + "Old_Name#thing")
+    assert result.status == m.CASE and result.new is None
+
+
+def test_a_renamed_page_with_a_toyline_heading_but_no_anchor_is_followed():
+    page = "Intro.\n==Toys==\n===''War for Cybertron: Siege''===\n:''Prose.''\n"
+    wiki = Fake({"Direct-Hit_(G1)": ("Direct-Hit", page)})
+    result = m.check(wiki, WIKI + "Direct-Hit_(G1)#War_for_Cybertron:_Siege")
+    assert result.new == WIKI + "Direct-Hit#War_for_Cybertron:_Siege"
+
+
+def test_an_anchor_on_two_entries_of_one_page_is_not_ambiguous_about_the_page():
     wiki = Fake(
         {
             "Name_(G1)": ("Name (G1)", "{{main|Name (G1)/toys}}\n"),
@@ -252,7 +279,8 @@ def test_an_anchor_on_two_entries_is_ambiguous():
             ),
         }
     )
-    assert m.check(wiki, WIKI + "Name_(G1)#Same").status == m.AMBIGUOUS
+    result = m.check(wiki, WIKI + "Name_(G1)#Same")
+    assert result.status == m.REWRITE and result.new == WIKI + "Name_(G1)/toys#Same"
 
 
 @pytest.mark.parametrize(
@@ -400,7 +428,7 @@ def test_dry_run_lists_and_saves_nothing(old_links, cache_only):
         and "Not_Cached_(G1)#Thing" in result.output
     )
     assert (
-        "the anchor differs in capital letters (left alone):\n  "
+        "the section is only found ignoring capital letters (left alone):\n  "
         + WIKI
         + "Alpha_Trion_(G1)#sdcc2015"
     ) in result.output

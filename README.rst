@@ -191,14 +191,17 @@ several figures you are asked which one is this.
 Modernising old links
 ~~~~~~~~~~~~~~~~~~~~~
 
-Many saved figure links are in the old form ``Name_(G1)#Anchor``; the wiki has
-since moved the toys of long character pages to ``Name/toys``.
-``flask modernise-links`` rewrites such a link to ``Name/toys#Anchor`` only when
-the toys page really has that ``{{anchor}}``, with the same capitals. Anything
-else (the page only redirects, the fragment is a heading and not an anchor, the
-anchor is on more than one entry, the page or figure is gone) is left alone and
-listed with the reason. It changes figures' *Link to Figure* and the links of
-their ancestors and pack-mates, and nothing else.
+Many saved figure links are in the old form ``Name_(G1)#Section``; the wiki has since
+moved the toys of long character pages to ``Name/toys``, and renamed other pages
+(``Direct-Hit_(G1)`` is now ``Direct-Hit``, ``Doublecrosser`` is now
+``Doublecrosser_(Earthrise)``). ``flask modernise-links`` rewrites such a link to the
+page the figure is on now, only when that page has the section **by exactly that
+name**: an ``{{anchor}}`` or a heading (the wiki gives a heading an id of the same
+name), capitals included. A link to a page that is still right is reported as already
+current. Anything else is left alone and listed with the reason: the section is only
+found ignoring capitals, it is on more than one page, the page or figure is gone, or
+the page is not cached. It changes figures' *Link to Figure* and the links of their
+ancestors and pack-mates, and nothing else.
 
 Every link the command could not settle is listed with **who uses it** (the figures
 whose own link it is, and the figures that list it as an ancestor or pack-mate), so you
