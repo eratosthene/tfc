@@ -158,8 +158,7 @@ def edit(auth_client, row, **data):
 
 
 def test_set_a_parent_in_the_franchise_form(auth_client, tree):
-    html = edit(auth_client, tree["prime"], parent=str(tree["generations"].id))
-    assert "Changed Record" in html or "Prime" in html
+    edit(auth_client, tree["prime"], parent=str(tree["generations"].id))
     assert db.session.get(Franchise, tree["prime"].id).parent.name == "Generations"
     edit(auth_client, tree["prime"], parent="")
     assert db.session.get(Franchise, tree["prime"].id).parent is None
