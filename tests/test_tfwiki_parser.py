@@ -647,3 +647,92 @@ def test_a_link_to_a_level_two_toyline_finds_the_figure(tmp_path):
     assert candidate["matched_by"] == "heading"
     assert candidate["link"] == WIKI + "Hot_Rod_(G1)/toys#Vintage_G1"
     assert candidate["fields"]["release_year"] == 2018
+
+
+# --- repeated headings: the wiki numbers them (Name, Name_2, Name_3) ------------------------
+
+# The shape of Darth Maul: a toyline heading with the same name as one under Fiction.
+REPEATED_PAGE = """Darth Maul is a [[Decepticon]] from the [[Star Wars continuity family]].
+==Fiction==
+===''Star Wars Transformers''===
+Some story text.
+==Toys==
+===''Star Wars Transformers''===
+[[File:Maul.jpg|thumb]]
+*'''Darth Maul / Sith Infiltrator''' (2006)
+**''Accessories:'' Lightsaber
+===''Universe''===
+*'''Maul''' (2008)
+===''Universe''===
+*'''Maul again''' (2009)
+===''Universe''===
+:''Prose only, a third section with the same name.''
+==Notes==
+Nothing.
+"""
+
+
+def test_heading_ids_number_a_repeated_heading_across_the_whole_page():
+    ids = parser.heading_ids(REPEATED_PAGE.splitlines())
+    named = {i: v for i, v in ids.items()}
+    assert list(named.values()) == [
+        "Fiction",
+        "Star_Wars_Transformers",  # markup stripped; the first one has no number
+        "Toys",
+        "Star_Wars_Transformers_2",
+        "Universe",
+        "Universe_2",
+        "Universe_3",
+        "Notes",
+    ]
+
+
+def test_a_numbered_fragment_picks_the_repeated_heading_it_names():
+    found = parser.entries(REPEATED_PAGE, "Darth Maul")
+    maul = found[0]
+    assert maul["heading"] == "Star Wars Transformers"
+    assert maul["heading_ids"] == ["Star_Wars_Transformers_2"]
+    assert parser.matches(maul, "Star_Wars_Transformers_2") == "heading"
+    assert parser.matches(maul, "Star_Wars_Transformers_3") is None
+    assert (
+        parser.matches(maul, "Star wars transformers 2") == "heading"
+    )  # as always, case-folded
+    universes = [e for e in found if e["heading"] == "Universe"]
+    assert [e["heading_ids"] for e in universes] == [
+        ["Universe"],
+        ["Universe_2"],
+        ["Universe_3"],  # the prose-only section, too
+    ]
+    assert parser.matches(universes[1], "Universe_2") == "heading"
+    assert parser.matches(universes[1], "Universe_3") is None
+
+
+def test_numbered_ids_also_count_on_a_page_with_level_two_toylines():
+    page = "==Universe==\n*'''A''' (2008)\n==Universe==\n*'''B''' (2009)\n"
+    first, second = parser.entries(page, "X (G1)/toys")
+    assert first["heading_ids"] == ["Universe"] and second["heading_ids"] == [
+        "Universe_2"
+    ]
+    assert parser.matches(second, "Universe_2") == "heading"
+
+
+def test_sub_headings_are_numbered_too():
+    page = "==Toys==\n===Line===\n====Wave====\n*'''A''' (2008)\n===Other===\n====Wave====\n*'''B''' (2009)\n"
+    first, second = parser.entries(page, "X")
+    assert first["heading_ids"] == ["Line", "Wave"] and second["heading_ids"] == [
+        "Other",
+        "Wave_2",
+    ]
+    assert parser.matches(second, "Wave_2") == "heading"
+
+
+def test_a_link_to_a_numbered_toyline_finds_the_figure(tmp_path):
+    cache_pages(tmp_path, {"Darth_Maul": REPEATED_PAGE})
+    fetcher = Fetcher(str(tmp_path), get=lambda url: pytest.fail("no network: " + url))
+    result = read_figure(fetcher, WIKI + "Darth_Maul#Star_Wars_Transformers_2")
+    (candidate,) = result["candidates"]
+    assert candidate["matched_by"] == "heading" and candidate["heading_ids"] == [
+        "Star_Wars_Transformers_2"
+    ]
+    assert candidate["link"] == WIKI + "Darth_Maul#Star_Wars_Transformers_2"
+    assert candidate["fields"]["name"] == "Darth Maul / Sith Infiltrator"

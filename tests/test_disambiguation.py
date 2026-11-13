@@ -151,6 +151,25 @@ def test_a_fragment_on_several_listed_pages_is_not_guessed(folder):
     assert "more than one page it lists" in str(raised.value)
 
 
+def test_a_numbered_fragment_resolves_through_a_disambiguation_too(folder):
+    pages = dict(PAGES)
+    pages["Battletrap_(G1)"] = (
+        "Battletrap (G1)",
+        "Battletrap is a Decepticon.\n==Fiction==\n===''Power of the Primes''===\nStory.\n"
+        "==Toys==\n===''Power of the Primes''===\n:''A prose description.''\n",
+    )
+    found = read_figure(
+        wiki_in(folder, pages), WIKI + "Battletrap#Power_of_the_Primes_2"
+    )
+    assert found["page"] == "Battletrap (G1)"
+    assert (
+        found["candidates"][0]["link"] == WIKI + "Battletrap_(G1)#Power_of_the_Primes_2"
+    )
+    assert m.check(
+        wiki_in(folder, pages), WIKI + "Battletrap#Power_of_the_Primes_2"
+    ).new == (WIKI + "Battletrap_(G1)#Power_of_the_Primes_2")
+
+
 def test_a_section_with_capitals_that_differ_is_not_a_match(folder):
     with pytest.raises(
         FigureNotFound, match="none of the 3 pages it lists has it"

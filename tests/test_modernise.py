@@ -221,6 +221,22 @@ def test_a_figure_described_in_prose_on_its_own_page_is_current():
     assert m.check(wiki, WIKI + "Name_(G1)#The_Line").status == m.CURRENT
 
 
+def test_a_link_to_a_numbered_repeated_heading_on_the_page_itself_is_current():
+    page = (
+        "Darth Maul is a [[Decepticon]].\n==Fiction==\n===''Star Wars Transformers''===\nStory.\n"
+        "==Toys==\n===''Star Wars Transformers''===\n"
+        "*'''Darth Maul / Sith Infiltrator''' (2006)\n"
+    )
+    wiki = Fake({"Darth_Maul": ("Darth Maul", page)})
+    assert (
+        m.check(wiki, WIKI + "Darth_Maul#Star_Wars_Transformers_2").status == m.CURRENT
+    )
+    assert (
+        m.check(wiki, WIKI + "Darth_Maul#Star_Wars_Transformers_3").status
+        == m.NO_FIGURE
+    )
+
+
 def test_a_redirect_is_not_a_move_to_a_toys_page():
     wiki = Fake({"Old_Name": ("New Name (G1)", toys(entry("Thing")))})
     assert m.check(wiki, WIKI + "Old_Name#Thing").status == m.REDIRECT
