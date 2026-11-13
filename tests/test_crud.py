@@ -388,9 +388,34 @@ def test_the_figure_form_drop_downs_are_in_name_order(auth_client, seed):
     )
     db.session.commit()
     html = auth_client.get("/figuremodelview/add").get_data(as_text=True)
-    names = ["Alpha", "Mid", "Optimus Prime", "Zed"]
+    from app.models import Continuity
+
+    continuity = db.session.get(Continuity, seed["continuity"].id).name
+    names = ["Alpha", "Mid", "Optimus Prime (%s)" % continuity, "Zed"]
     positions = [html.index(">%s</option>" % n) for n in names]
     assert positions == sorted(positions)
+
+
+def test_the_character_drop_down_shows_each_characters_continuity(auth_client, seed):
+    from app.models import Character, Continuity
+
+    prime = Continuity(name="Prime")
+    db.session.add_all(
+        [
+            prime,
+            Character(name="Arcee", link="https://tfwiki.net/wiki/Arcee_(G1)"),
+            Character(
+                name="Arcee",
+                link="https://tfwiki.net/wiki/Arcee_(Prime)",
+                continuity=prime,
+            ),
+        ]
+    )
+    db.session.commit()
+    for path in ("add", "edit/%s" % seed["figure"].id):
+        html = auth_client.get("/figuremodelview/" + path).get_data(as_text=True)
+        assert ">Arcee</option>" in html  # no continuity: just the name
+        assert ">Arcee (Prime)</option>" in html
 
 
 def test_the_reference_boxes_are_full_width_and_tall(auth_client, seed):
