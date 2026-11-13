@@ -72,7 +72,6 @@ def test_index_counts_match_known_data(auth_client, captured):
     assert totals("franchise", captured["by_franchise"]) == {
         "G1": 2,
         "Beast Wars": 2,
-        "Unused Franchise": 0,
     }
     assert totals("faction", captured["by_faction"]) == {
         "Autobot": 2,
@@ -85,7 +84,6 @@ def test_index_counts_match_known_data(auth_client, captured):
     assert [str(r["franchise"]) for r in captured["by_franchise"]] == [
         "G1",
         "Beast Wars",
-        "Unused Franchise",
     ]
     assert [str(r["faction"]) for r in captured["by_faction"]] == [
         "Autobot",
@@ -126,7 +124,7 @@ def test_a_parent_franchise_counts_the_figures_below_it(auth_client, captured):
     resp = auth_client.get("/")
     roots = captured["by_franchise"]
     # Only the top level is listed; G1 and Beast Wars sit below Transformers.
-    assert [str(r["franchise"]) for r in roots] == ["Transformers", "Unused Franchise"]
+    assert [str(r["franchise"]) for r in roots] == ["Transformers"]
     top = roots[0]
     # Two (One, Two) are in G1 and two (Two, Three) in Beast Wars; Two is in both.
     assert top["total"] == 3
@@ -189,10 +187,32 @@ def test_by_continuity_groups_continuities_into_families(auth_client, captured):
 
 
 def test_a_franchise_picture_lines_up_with_the_name_not_the_toggle(auth_client):
-    db.session.add(Franchise(name="Pictured", image="x.jpg", start_year=2000))
+    _add_known_data()
+    db.session.query(Franchise).filter_by(name="G1").one().image = "x.jpg"
     db.session.commit()
     page = auth_client.get("/").get_data(as_text=True)
     assert 'class="img-responsive tree-picture"' in page
     assert ".tree-picture { margin-left: 32px; }" in page
     # 32px is the toggle's width (26px) plus its right margin (6px)
     assert "width: 26px; margin-right: 6px" in page
+
+
+def test_franchises_with_no_figures_are_not_listed(auth_client, captured):
+    _add_known_data()
+    g1 = db.session.query(Franchise).filter_by(name="G1").one()
+    sold = Franchise(name="All Sold", start_year=1990)
+    empty_child = Franchise(name="Empty Child", start_year=1991, parent=g1)
+    empty_parent = Franchise(name="Empty Parent", start_year=1992)
+    empty_grandchild = Franchise(
+        name="Empty Grandchild", start_year=1993, parent=empty_parent
+    )
+    db.session.add_all([sold, empty_child, empty_parent, empty_grandchild])
+    db.session.commit()
+    html = auth_client.get("/").get_data(as_text=True)
+    roots = captured["by_franchise"]
+    assert [str(r["franchise"]) for r in roots] == ["G1", "Beast Wars"]
+    assert roots[0]["children"] == []
+    for name in ("All Sold", "Empty Child", "Empty Parent", "Empty Grandchild"):
+        assert name not in html
+    # The franchise list itself still has them.
+    assert db.session.query(Franchise).filter_by(name="All Sold").count() == 1

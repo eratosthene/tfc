@@ -37,6 +37,7 @@ def _by_franchise():
     """The franchise tree: top-level franchises, each with its ``children``.
 
     A franchise's total counts the figures tagged with it or anything below it.
+    A franchise with none (so nothing below it has any either) is left out.
     """
     parents = parent_map()
     tagged = defaultdict(set)
@@ -59,7 +60,9 @@ def _by_franchise():
     for franchise_id, node in nodes.items():
         parent = nodes.get(parents[franchise_id])
         (parent["children"] if parent else roots).append(node)
-    return roots
+    for node in nodes.values():
+        node["children"] = [c for c in node["children"] if c["total"]]
+    return [node for node in roots if node["total"]]
 
 
 def _by_continuity():
