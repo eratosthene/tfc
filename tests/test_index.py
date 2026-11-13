@@ -186,3 +186,13 @@ def test_by_continuity_groups_continuities_into_families(auth_client, captured):
     ]
     assert roots[2]["total"] == 1
     assert 'data-parent="g%d"' % aligned["family"].id in resp.get_data(as_text=True)
+
+
+def test_a_franchise_picture_lines_up_with_the_name_not_the_toggle(auth_client):
+    db.session.add(Franchise(name="Pictured", image="x.jpg", start_year=2000))
+    db.session.commit()
+    page = auth_client.get("/").get_data(as_text=True)
+    assert 'class="img-responsive tree-picture"' in page
+    assert ".tree-picture { margin-left: 32px; }" in page
+    # 32px is the toggle's width (26px) plus its right margin (6px)
+    assert "width: 26px; margin-right: 6px" in page
