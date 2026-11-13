@@ -1,7 +1,7 @@
 """From a pasted tfwiki.net link to suggestions for one figure."""
 
 from app.tfwiki import parser
-from app.tfwiki.fetcher import FetchError, normalize_title
+from app.tfwiki.fetcher import FetchError, PageNotFound, normalize_title
 
 
 class FigureNotFound(parser.ParseError):
@@ -10,6 +10,11 @@ class FigureNotFound(parser.ParseError):
     def __init__(self, message, available):
         super().__init__(message)
         self.available = available
+
+
+class FigureOnSeveralPages(FigureNotFound):
+    """The link's page is now a disambiguation page, and more than one of the
+    pages it lists has a section called that."""
 
 
 def _found(entries, fragment):
@@ -43,9 +48,21 @@ def read_figure(
     ``FigureNotFound`` when no page has such a figure, and the fetcher's errors
     unchanged. With ``fields=False`` only the link is worked out: no suggestions
     are made, and so no faction-symbol template pages are fetched.
+
+    A name that used to be a character page may now be a disambiguation page
+    (``Battletrap`` -> ``Battletrap (G1)``, ``(Cyberverse)``...). If the figure is not
+    on it and the link has a ``#fragment``, each page it lists is read, and if
+    exactly one has a section with that exact name (capitals included) the result
+    is that page's, with ``disambiguated`` set to the disambiguation page's title.
+    More than one raises ``FigureOnSeveralPages``; none, ``FigureNotFound``.
     """
+    return _read(fetcher, url, factions, search_all, fields, None)
+
+
+def _read(fetcher, url, factions, search_all, fields, via):
     asked, fragment = parser.parse_url(url)
     title, text = fetcher.page(asked)
+    first_title, first_text = title, text
     moved = normalize_title(title).lower() != asked.lower()
     entries = parser.entries(text, title)
     found = [(title, e, how) for e, how in _found(entries, fragment)]
@@ -57,6 +74,17 @@ def read_figure(
             found += [(title, e, how) for e, how in _found(entries, fragment)]
             if found and not search_all:
                 break
+    if not found and fragment and via is None and parser.is_disambiguation(first_text):
+        return _through_disambiguation(
+            fetcher,
+            first_title,
+            first_text,
+            asked,
+            fragment,
+            factions,
+            search_all,
+            fields,
+        )
     if not found:
         available = sorted(
             {e["heading"] for e in entries if e["heading"]}
@@ -86,6 +114,8 @@ def read_figure(
         candidates.append(
             {
                 "matched_by": how,
+                "heading": entry["heading"],
+                "subheading": entry["subheading"],
                 "anchors": entry["anchors"],
                 "link": link,
                 "fields": suggestions,
@@ -100,3 +130,53 @@ def read_figure(
         "character": parser.character(found[0][0]),
         "candidates": candidates,
     }
+
+
+def _through_disambiguation(
+    fetcher, title, text, asked, fragment, factions, search_all, fields
+):
+    """Look for ``fragment`` on every page a disambiguation page lists."""
+    targets = parser.disambiguation_targets(text)
+    hits = []
+    for target in targets:
+        try:
+            found = _read(
+                fetcher,
+                parser.page_url(target, fragment),
+                factions,
+                search_all,
+                fields,
+                title,
+            )
+        except (FigureNotFound, PageNotFound):
+            continue  # that namesake has no such section, or its page is gone
+        for candidate in found["candidates"]:
+            names = candidate["anchors"] + [
+                candidate["heading"],
+                candidate["subheading"],
+            ]
+            if any(n and parser.same_fragment(fragment, n) for n in names):
+                hits.append((found, candidate))
+    if len(hits) == 1:
+        found, candidate = hits[0]
+        return {
+            "asked": asked,
+            "page": found["page"],
+            "fragment": fragment,
+            "moved": True,
+            "disambiguated": title,
+            "character": found["character"],
+            "candidates": [candidate],
+        }
+    if len(hits) > 1:
+        pages = sorted({found["page"] for found, _candidate in hits})
+        raise FigureOnSeveralPages(
+            "%s is a disambiguation page and #%s is on more than one page it lists: %s"
+            % (title, fragment, ", ".join(pages)),
+            pages,
+        )
+    raise FigureNotFound(
+        "No figure for #%s: %s is a disambiguation page and none of the %d pages it "
+        "lists has it" % (fragment, title, len(targets)),
+        [t.replace("_", " ") for t in targets],
+    )

@@ -323,6 +323,42 @@ def _field_label(label):
     return any(label in names for names in FIELD_LABELS.values())
 
 
+def same_fragment(a, b):
+    """True if two fragments or headings name the same section, escapes decoded
+    and separators unified, but with their capitals: the wiki's anchors and
+    headings are case-sensitive."""
+
+    def plain(text):
+        return re.sub(r"[\s_]+", " ", decode_anchor(urllib.parse.unquote(text))).strip()
+
+    return plain(a) == plain(b)
+
+
+# --- disambiguation pages ---------------------------------------------------
+
+DISAMBIG_ITEM = re.compile(
+    r"^\{\{disamb\|(?:y=(?:\[\[[^\]]*\]\]|[^|])*\|)?\s*\[\[([^\]|#]+)", re.I
+)
+
+
+def is_disambiguation(wikitext):
+    return bool(re.search(r"\{\{disambig\}\}", wikitext, re.I))
+
+
+def disambiguation_targets(wikitext):
+    """The pages a disambiguation page lists as its namesakes: the first link of
+    each ``{{disamb|y=1987|[[Name (G1)|Name]], the ...}}`` line. Its gallery and its
+    "not to be confused with" list are not namesakes."""
+    out = []
+    for line in wikitext.splitlines():
+        found = DISAMBIG_ITEM.match(line.strip())
+        if found:
+            page = normalize_title(found.group(1))
+            if page not in out:
+                out.append(page)
+    return out
+
+
 def matches(entry, fragment):
     """How a ``#fragment`` picks this entry: 'anchor', 'heading' or None."""
     want = norm(fragment)
