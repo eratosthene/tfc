@@ -200,6 +200,22 @@ anchor is on more than one entry, the page or figure is gone) is left alone and
 listed with the reason. It changes figures' *Link to Figure* and the links of
 their ancestors and pack-mates, and nothing else.
 
+Every link the command could not settle is listed with **who uses it** (the figures
+whose own link it is, and the figures that list it as an ancestor or pack-mate), so you
+can see where it has to be fixed. A link the tools can never work out for themselves (a
+wiki page that changed with no redirect, ``Daburu_(TR)#Titans_Return`` becoming
+``Daburu#Titans_Return``) is fixed by hand, everywhere it is used, with
+``flask replace-link``. Quote both links, since they contain ``(`` and ``#``; without
+``--apply`` it only lists what would change::
+
+	flask replace-link 'https://tfwiki.net/wiki/Daburu_(TR)#Titans_Return' 'https://tfwiki.net/wiki/Daburu#Titans_Return'
+	flask replace-link 'https://tfwiki.net/wiki/Daburu_(TR)#Titans_Return' 'https://tfwiki.net/wiki/Daburu#Titans_Return' --apply
+
+It changes figures' *Link to Figure* and the links of ancestors and pack-mates that are
+exactly the old link (not one that differs in capitals or in its fragment), never fetches,
+and, if the new link's page is in the cache, checks that the section is there and warns
+if it is not.
+
 A fragment can also be one the wiki *numbered* because a heading repeats on the page:
 ``Darth_Maul#Star_Wars_Transformers_2`` is the second heading called "Star Wars
 Transformers" (the first is under Fiction, the second under Toys). Repeats are counted

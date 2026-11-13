@@ -529,3 +529,188 @@ def test_the_gap_between_requests_can_be_lengthened_but_not_shortened(
     run()
     run("--delay", "10")
     assert gaps == [2.0, 7.5, 2.0, 4.0, 10.0]
+
+
+# --- who uses a link, and replacing one by hand -----------------------------------------
+
+
+def test_usage_says_who_uses_a_link():
+    usage = cli.Usage()
+    assert usage.describe() == ""
+    usage.figures.append((7, "Daburu"))
+    assert usage.describe() == "1 figure: Daburu #7"
+    usage.references.append((9, "Cerebros", "ancestor"))
+    usage.references.append((10, "Fortress Maximus", "packed_with"))
+    assert usage.describe() == (
+        "1 figure: Daburu #7; "
+        "2 references on: Cerebros #9 (ancestor), Fortress Maximus #10 (packed with)"
+    )
+    for n in range(5):
+        usage.figures.append((20 + n, "F%d" % n))
+    assert usage.describe(shown=2) == (
+        "6 figures: Daburu #7, F0 #20 and 4 more; "
+        "2 references on: Cerebros #9 (ancestor), Fortress Maximus #10 (packed with)"
+    )
+    assert usage.as_json() == {
+        "figures": [list(f) for f in usage.figures],
+        "references": [
+            [9, "Cerebros", "ancestor"],
+            [10, "Fortress Maximus", "packed_with"],
+        ],
+    }
+
+
+def test_the_report_says_who_uses_the_links_it_could_not_settle(
+    old_links, cache_only, tmp_path
+):
+    path = tmp_path / "report.json"
+    out = run("--json", str(path)).output
+    fid = old_links["figure"].id
+    assert (
+        "Not_Cached_(G1)#Thing\n      used by: 1 reference on: Optimus Prime #%d (packed with)"
+        % fid
+    ) in out
+    other = db.session.query(Figure).filter_by(name="Other").one()
+    assert (
+        "used by: 1 figure: Other #%d" % other.id in out
+    )  # the link that differs in capitals
+    report = json.loads(path.read_text())
+    entry = report[WIKI + "Not_Cached_(G1)#Thing"]
+    assert entry["used_by"] == {
+        "figures": [],
+        "references": [[fid, "Optimus Prime", "packed_with"]],
+    }
+
+
+def replace(*args):
+    result = CliRunner().invoke(cli.replace_link, list(args))
+    db.session.expire_all()
+    return result
+
+
+OLD_DABURU = WIKI + "Daburu_(TR)#Titans_Return"
+NEW_DABURU = WIKI + "Daburu#Titans_Return"
+
+
+@pytest.fixture
+def daburu(seed):
+    """A figure whose own link is the old one, and another figure that lists it."""
+    figure = db.session.get(Figure, seed["figure"].id)
+    figure.link = OLD_DABURU
+    other = Figure(
+        name="Cerebros",
+        release_year=2016,
+        faction=figure.faction,
+        link=WIKI + "Cerebros_(G1)/toys#Titans_Return",
+    )
+    db.session.add(other)
+    db.session.flush()
+    db.session.add_all(
+        [
+            FigureReference(
+                figure_id=other.id, kind="ancestor", name="Daburu", link=OLD_DABURU
+            ),
+            FigureReference(
+                figure_id=other.id, kind="packed_with", name="Daburu", link=OLD_DABURU
+            ),
+            FigureReference(
+                figure_id=other.id,
+                kind="ancestor",
+                name="Daburu elsewhere",
+                link=WIKI + "Daburu_(TR)#Other",
+            ),
+        ]
+    )
+    db.session.commit()
+    return seed
+
+
+def test_replace_link_lists_who_would_change_and_saves_nothing(daburu, cache_only):
+    result = replace(OLD_DABURU, NEW_DABURU)
+    assert result.exit_code == 0, result.output
+    assert OLD_DABURU + "\n  -> " + NEW_DABURU in result.output
+    assert "1 figure: Optimus Prime #%d" % daburu["figure"].id in result.output
+    assert "2 references on: Cerebros" in result.output
+    assert (
+        "1 figure links and 2 references would change. Run again with --apply."
+        in result.output
+    )
+    assert db.session.get(Figure, daburu["figure"].id).link == OLD_DABURU
+
+
+def test_replace_link_changes_only_exact_matches(daburu, cache_only):
+    other = Figure(
+        name="Case",
+        release_year=2000,
+        faction=db.session.get(Figure, daburu["figure"].id).faction,
+        link=OLD_DABURU.replace("Daburu", "daburu"),  # differs only in capitals
+    )
+    db.session.add(other)
+    db.session.commit()
+    result = replace(OLD_DABURU, NEW_DABURU, "--apply")
+    assert "Changed 1 figure links and 2 references." in result.output
+    assert db.session.get(Figure, daburu["figure"].id).link == NEW_DABURU
+    refs = {r.name: r.link for r in db.session.query(FigureReference)}
+    assert refs["Daburu"] == NEW_DABURU
+    assert (
+        refs["Daburu elsewhere"] == WIKI + "Daburu_(TR)#Other"
+    )  # another fragment: untouched
+    assert db.session.query(Figure).filter_by(name="Case").one().link == other.link
+    assert "No figure or reference uses" in replace(OLD_DABURU, NEW_DABURU).output
+
+
+@pytest.mark.parametrize(
+    "args, message",
+    [
+        (("https://example.com/x#y", NEW_DABURU), "Not a tfwiki.net link"),
+        ((OLD_DABURU, "not a link"), "Not a tfwiki.net link"),
+        ((OLD_DABURU, OLD_DABURU), "the same link"),
+    ],
+)
+def test_replace_link_refuses_bad_links(daburu, cache_only, args, message):
+    result = replace(*args, "--apply")
+    assert result.exit_code != 0 and message in result.output
+    assert db.session.get(Figure, daburu["figure"].id).link == OLD_DABURU
+
+
+@pytest.mark.parametrize(
+    "new, expected",
+    [
+        (WIKI + "Alpha_Trion/toys#Legacy", "The cached page has that section."),
+        (
+            WIKI + "Alpha_Trion/toys#Nonesuch",
+            "WARNING: the cached page does not have that section",
+        ),
+        (
+            WIKI + "Not_Cached_Page#X",
+            "not in the cache, so the new link's section was not checked",
+        ),
+    ],
+)
+def test_replace_link_checks_the_new_link_against_the_cache_only(
+    daburu, cache_only, new, expected
+):
+    result = replace(OLD_DABURU, new)
+    assert expected in result.output and "would change" in result.output
+
+
+def test_replace_link_reports_a_page_it_cannot_read(daburu, cache_only, monkeypatch):
+    class Broken:
+        def page(self, title, refresh=False):
+            raise PageNotFound(title)
+
+    monkeypatch.setattr(cli, "build_fetcher", lambda fetch, delay=None: Broken())
+    assert "The new link could not be checked" in replace(OLD_DABURU, NEW_DABURU).output
+
+
+def test_replace_link_never_fetches(daburu, cache_only, monkeypatch):
+    flask_app.config["TFWIKI_ENABLED"] = True
+    seen = []
+    real = cli.build_fetcher
+    monkeypatch.setattr(
+        cli,
+        "build_fetcher",
+        lambda fetch, delay=None: seen.append(fetch) or real(fetch, delay),
+    )
+    replace(OLD_DABURU, WIKI + "Not_Cached_Page#X")
+    assert seen == [False]
