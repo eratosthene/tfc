@@ -11,7 +11,7 @@
         <td style="padding-left:{{ 8 + depth * 24 }}px">{{ toggle(f.children) }}
           <a href="{{ url_for('FigureModelView.list',_flt_0_franchise=f.franchise.id) }}">{{ f.franchise.name }}
 {% if f.franchise.image %}
-          <br/><img src="{{ url_for('FranchiseModelView.img_thumb', pk=f.franchise.id) }}" alt="{{ f.franchise.name }}" class="img-responsive">
+          <br/><img src="{{ url_for('FranchiseModelView.img_thumb', pk=f.franchise.id) }}" alt="{{ f.franchise.name }}" class="img-responsive tree-picture">
 {% endif %}
         </a></td>
         <td>{{ f.franchise.start_year}}</td>
@@ -60,6 +60,7 @@
 <style>
   .tree-toggle, .tree-toggle-gap { display: inline-block; width: 26px; margin-right: 6px; text-align: center; }
   .tree-toggle { padding: 0 4px; }
+  .tree-picture { margin-left: 32px; } /* the toggle's width plus its margin */
 </style>
 <script>
 document.addEventListener("click", function (e) {
