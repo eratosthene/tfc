@@ -403,13 +403,15 @@ class FigureModelView(ModelView):
 appbuilder.add_view(FigureModelView, "Figures")
 appbuilder.add_view(AddFromTFWikiView, "Add from TFWiki")
 appbuilder.add_view_no_menu(RefreshFigureView)
-appbuilder.add_view(FranchiseModelView, "Franchises")
-appbuilder.add_view(FactionModelView, "Factions")
-appbuilder.add_view(ToolingModelView, "Toolings")
-appbuilder.add_view(CategoryModelView, "Categories")
-appbuilder.add_view(CharacterModelView, "Characters")
-appbuilder.add_view(ContinuityModelView, "Continuities")
-appbuilder.add_view(ContinuityFamilyModelView, "Continuity Families")
+appbuilder.add_view(CharacterModelView, "Characters", category="Characters")
+appbuilder.add_view(ContinuityModelView, "Continuities", category="Characters")
+appbuilder.add_view(
+    ContinuityFamilyModelView, "Continuity Families", category="Characters"
+)
+appbuilder.add_view(FranchiseModelView, "Franchises", category="Classification")
+appbuilder.add_view(FactionModelView, "Factions", category="Classification")
+appbuilder.add_view(ToolingModelView, "Toolings", category="Classification")
+appbuilder.add_view(CategoryModelView, "Categories", category="Classification")
 
 """
     Application wide 404 error handler
