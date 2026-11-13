@@ -13,7 +13,14 @@ from app import app, db
 from app.models import Character, Figure, FigureReference
 from app.tfwiki import characters as character_pages
 from app.tfwiki import modernise, parser
-from app.tfwiki.fetcher import MIN_DELAY, RateLimited, fetcher_from_config
+from app.tfwiki.fetcher import (
+    MIN_DELAY,
+    Disabled,
+    FetchError,
+    RateLimited,
+    fetcher_from_config,
+)
+from app.tfwiki.figure import FigureNotFound, read_figure
 
 
 def build_fetcher(fetch, delay=None):
@@ -26,18 +33,78 @@ def build_fetcher(fetch, delay=None):
     return fetcher
 
 
-def used_links():
-    """{link: [figures using it, references using it]} for the old-style ones."""
-    counts = defaultdict(lambda: [0, 0])
-    for (link,) in db.session.execute(
-        select(Figure.link).where(Figure.link.isnot(None))
+KIND_LABELS = {"ancestor": "ancestor", "packed_with": "packed with"}
+
+
+class Usage:
+    """Who uses a link: figures (their own link) and references (an ancestor or
+    pack-mate listed on a figure)."""
+
+    def __init__(self):
+        self.figures = []  # [(figure id, figure name)]
+        self.references = []  # [(figure id, figure name, kind)]
+
+    def describe(self, shown=4):
+        parts = []
+        if self.figures:
+            names = ["%s #%d" % (name, fid) for fid, name in self.figures[:shown]]
+            more = len(self.figures) - shown
+            parts.append(
+                "%d figure%s: %s%s"
+                % (
+                    len(self.figures),
+                    "" if len(self.figures) == 1 else "s",
+                    ", ".join(names),
+                    " and %d more" % more if more > 0 else "",
+                )
+            )
+        if self.references:
+            names = [
+                "%s #%d (%s)" % (name, fid, KIND_LABELS.get(kind, kind))
+                for fid, name, kind in self.references[:shown]
+            ]
+            more = len(self.references) - shown
+            parts.append(
+                "%d reference%s on: %s%s"
+                % (
+                    len(self.references),
+                    "" if len(self.references) == 1 else "s",
+                    ", ".join(names),
+                    " and %d more" % more if more > 0 else "",
+                )
+            )
+        return "; ".join(parts)
+
+    def as_json(self):
+        return {
+            "figures": [list(f) for f in self.figures],
+            "references": [list(r) for r in self.references],
+        }
+
+
+def link_users(keep=lambda link: True):
+    """{link: Usage} for every link on a figure or a reference that ``keep`` accepts."""
+    users = defaultdict(Usage)
+    for fid, name, link in db.session.execute(
+        select(Figure.id, Figure.name, Figure.link)
+        .where(Figure.link.isnot(None))
+        .order_by(Figure.id)
     ):
-        if modernise.old_style(link):
-            counts[link][0] += 1
-    for (link,) in db.session.execute(select(FigureReference.link)):
-        if modernise.old_style(link):
-            counts[link][1] += 1
-    return counts
+        if keep(link):
+            users[link].figures.append((fid, name))
+    for fid, name, kind, link in db.session.execute(
+        select(Figure.id, Figure.name, FigureReference.kind, FigureReference.link)
+        .join(Figure, Figure.id == FigureReference.figure_id)
+        .order_by(Figure.id, FigureReference.kind, FigureReference.position)
+    ):
+        if keep(link):
+            users[link].references.append((fid, name, kind))
+    return users
+
+
+def used_links():
+    """{link: Usage} for the old-style links."""
+    return link_users(modernise.old_style)
 
 
 def rewrite(model, old, new):
@@ -108,8 +175,8 @@ def modernise_links(fetch, limit, delay, apply_, json_path):
         "%d old-style links (%d figure links, %d references); pages fetched: %d"
         % (
             len(links),
-            sum(c[0] for c in links.values()),
-            sum(c[1] for c in links.values()),
+            sum(len(u.figures) for u in links.values()),
+            sum(len(u.references) for u in links.values()),
             budget.used,
         )
     )
@@ -120,17 +187,19 @@ def modernise_links(fetch, limit, delay, apply_, json_path):
     if rewrites:
         click.echo("Rewrites:")
         for old, new in rewrites:
-            figures, references = links[old]
+            usage = links[old]
             click.echo(
                 "  %s\n    -> %s   [%d figures, %d references]"
-                % (old, new, figures, references)
+                % (old, new, len(usage.figures), len(usage.references))
             )
     for status in modernise.LABELS:
         if status != modernise.REWRITE and tally[status]:
             click.echo("%s:" % modernise.LABELS[status])
             for link, result in results.items():
                 if result.status == status:
-                    click.echo("  %s" % link)
+                    click.echo(
+                        "  %s\n      used by: %s" % (link, links[link].describe())
+                    )
     if tally[modernise.NOT_CACHED] or tally[modernise.LIMIT]:
         click.echo(
             "Some pages are not in the cache. Set TFWIKI_ENABLED and run with "
@@ -144,8 +213,9 @@ def modernise_links(fetch, limit, delay, apply_, json_path):
                         "status": r.status,
                         "detail": r.detail,
                         "new": r.new,
-                        "figures": links[link][0],
-                        "references": links[link][1],
+                        "figures": len(links[link].figures),
+                        "references": len(links[link].references),
+                        "used_by": links[link].as_json(),
                     }
                     for link, r in results.items()
                 },
@@ -365,3 +435,63 @@ def _is_wiki_link(link):
     except parser.ParseError:
         return False
     return True
+
+
+# --- flask replace-link -------------------------------------------------------
+
+
+@app.cli.command("replace-link")
+@click.argument("old")
+@click.argument("new")
+@click.option(
+    "--apply", "apply_", is_flag=True, help="Make the change (default: only list)."
+)
+def replace_link(old, new, apply_):
+    """Replace one tfwiki.net link with another, everywhere it is used.
+
+    For a link the tools cannot work out for themselves (a wiki page that changed with
+    no redirect, so ``Daburu_(TR)#Titans_Return`` became ``Daburu#Titans_Return``).
+    OLD and NEW are full links (quote them in the shell: they contain parentheses and
+    ``#``). It changes figures' *Link to Figure* and the links of ancestors and
+    pack-mates that are exactly OLD, and lists them first; nothing is saved without
+    --apply. It never fetches: if NEW's page is in the cache it checks the section is
+    there and warns if it is not.
+    """
+    for each in (old, new):
+        try:
+            parser.parse_url(each)
+        except parser.ParseError as error:
+            raise click.ClickException("%s: %s" % (each, error))
+    if old == new:
+        raise click.ClickException("OLD and NEW are the same link.")
+    usage = link_users(lambda link: link == old).get(old)
+    if usage is None:
+        click.echo("No figure or reference uses %s." % old)
+        return
+    click.echo("%s\n  -> %s\n  used by: %s" % (old, new, usage.describe(shown=50)))
+    click.echo(_cached_opinion(new))
+    if apply_:
+        figures = rewrite(Figure, old, new)
+        references = rewrite(FigureReference, old, new)
+        db.session.commit()
+        click.echo("Changed %d figure links and %d references." % (figures, references))
+    else:
+        click.echo(
+            "%d figure links and %d references would change. Run again with --apply."
+            % (len(usage.figures), len(usage.references))
+        )
+
+
+def _cached_opinion(link):
+    """What the cache says about ``link``'s section; never fetches."""
+    try:
+        read_figure(build_fetcher(False), link, search_all=True, fields=False)
+    except Disabled:
+        return (
+            "That page is not in the cache, so the new link's section was not checked."
+        )
+    except FigureNotFound as error:
+        return "WARNING: the cached page does not have that section (%s)." % error
+    except (FetchError, parser.ParseError) as error:
+        return "The new link could not be checked: %s" % error
+    return "The cached page has that section."
