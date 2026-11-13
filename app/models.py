@@ -350,6 +350,15 @@ class Character(Named, db.Model):
 
     continuity = relationship("Continuity")
 
+    def __str__(self):
+        """ "Optimus Prime (G1)": the same name in two continuities is two
+        characters, so drop-downs and lists show which."""
+        return (
+            "%s (%s)" % (self.name, self.continuity.name)
+            if self.continuity
+            else self.name
+        )
+
     def link_show(self):
         return _link(self.link, self.link)
 
