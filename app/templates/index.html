@@ -4,24 +4,12 @@
 <div class="container">
   <h1>My Transformers Collection</h1>
   <h2>Total number of figures: {{ num_figures }}</h2>
-{% macro nested(id, label, indent) %}
-<div class="panel-group" id="{{ id }}" style="margin:0 0 0 {{ indent }}px">
-  <div class="panel panel-default">
-    <div class="panel-heading">
-      <h4 class="panel-title">
-        <a class="accordion-toggle" data-toggle="collapse" href="#{{ id }}_href">{{ label }}<span class="caret"></span></a>
-      </h4>
-    </div>
-    <div id="{{ id }}_href" class="panel-collapse collapse">
-      <div class="panel-body">{{ caller() }}</div>
-    </div>
-  </div>
-</div>
-{% endmacro %}
-{% macro franchise_rows(nodes, depth) %}
+{% macro toggle(has_children) %}{% if has_children %}<button type="button" class="btn btn-xs btn-default tree-toggle" aria-expanded="false" title="Show / hide the ones below">&#9656;</button>{% else %}<span class="tree-toggle-gap"></span>{% endif %}{% endmacro %}
+{% macro franchise_rows(nodes, depth, parent) %}
 {% for f in nodes %}
-      <tr>
-        <td><a href="{{ url_for('FigureModelView.list',_flt_0_franchise=f.franchise.id) }}">{{ f.franchise.name }}
+      <tr class="tree-row" data-id="f{{ f.franchise.id }}" data-parent="{{ parent }}"{% if depth %} style="display:none"{% endif %}>
+        <td style="padding-left:{{ 8 + depth * 24 }}px">{{ toggle(f.children) }}
+          <a href="{{ url_for('FigureModelView.list',_flt_0_franchise=f.franchise.id) }}">{{ f.franchise.name }}
 {% if f.franchise.image %}
           <br/><img src="{{ url_for('FranchiseModelView.img_thumb', pk=f.franchise.id) }}" alt="{{ f.franchise.name }}" class="img-responsive">
 {% endif %}
@@ -30,75 +18,75 @@
         <td>{{ f.franchise.end_year }}</td>
         <td>{{ f.total }}</td>
       </tr>
-{% if f.children %}
-      <tr>
-        <td colspan="4">
-{% call nested('by_franchise_' ~ f.franchise.id, 'Sub-franchises of ' ~ f.franchise.name, 20) %}
-          <table class="table table-striped table-hover">
-            <thead>
-              <tr><th>Name</th><th>Start Year</th><th>End Year</th><th>Total</th></tr>
-            </thead>
-            <tbody>
-{{ franchise_rows(f.children, depth + 1) }}
-            </tbody>
-          </table>
-{% endcall %}
-        </td>
-      </tr>
-{% endif %}
+{{ franchise_rows(f.children, depth + 1, 'f' ~ f.franchise.id) }}
 {% endfor %}
 {% endmacro %}
-{% macro continuity_row(c) %}
-      <tr>
-        <td><a href="{{ url_for('FigureModelView.list',_flt_0_continuity=c.continuity.id) }}">{{ c.continuity.name }}</a></td>
+{% macro continuity_row(c, depth, parent) %}
+      <tr class="tree-row" data-id="c{{ c.continuity.id }}" data-parent="{{ parent }}"{% if depth %} style="display:none"{% endif %}>
+        <td style="padding-left:{{ 8 + depth * 24 }}px"><span class="tree-toggle-gap"></span><a href="{{ url_for('FigureModelView.list',_flt_0_continuity=c.continuity.id) }}">{{ c.continuity.name }}</a></td>
         <td>{{ c.total }}</td>
       </tr>
 {% endmacro %}
 {% call lib.accordion_tag('by_franchise',"By Franchise", False) %}
-  <table class="table table-striped table-hover">
+  <table class="table table-striped table-hover tree-table">
     <thead>
       <tr><th>Name</th><th>Start Year</th><th>End Year</th><th>Total</th></tr>
     </thead>
     <tbody>
-{{ franchise_rows(by_franchise, 0) }}
+{{ franchise_rows(by_franchise, 0, '') }}
     </tbody>
   </table>
 {% endcall %}
 {% call lib.accordion_tag('by_continuity',"By Continuity", False) %}
-  <table class="table table-striped table-hover">
+  <table class="table table-striped table-hover tree-table">
     <thead>
       <tr><th>Name</th><th>Total</th></tr>
     </thead>
     <tbody>
 {% for c in by_continuity %}
 {% if c.family %}
-      <tr>
-        <td><a href="{{ url_for('FigureModelView.list',_flt_0_family=c.family.id) }}">{{ c.family.name }}</a></td>
+      <tr class="tree-row" data-id="g{{ c.family.id }}" data-parent="">
+        <td style="padding-left:8px">{{ toggle(c.children) }}<a href="{{ url_for('FigureModelView.list',_flt_0_family=c.family.id) }}">{{ c.family.name }}</a></td>
         <td>{{ c.total }}</td>
       </tr>
-{% if c.children %}
-      <tr>
-        <td colspan="2">
-{% call nested('by_continuity_' ~ c.family.id, 'Continuities in ' ~ c.family.name, 20) %}
-          <table class="table table-striped table-hover">
-            <thead>
-              <tr><th>Name</th><th>Total</th></tr>
-            </thead>
-            <tbody>
-{% for child in c.children %}{{ continuity_row(child) }}{% endfor %}
-            </tbody>
-          </table>
-{% endcall %}
-        </td>
-      </tr>
-{% endif %}
+{% for child in c.children %}{{ continuity_row(child, 1, 'g' ~ c.family.id) }}{% endfor %}
 {% else %}
-{{ continuity_row(c) }}
+{{ continuity_row(c, 0, '') }}
 {% endif %}
 {% endfor %}
     </tbody>
   </table>
 {% endcall %}
+<style>
+  .tree-toggle, .tree-toggle-gap { display: inline-block; width: 26px; margin-right: 6px; text-align: center; }
+  .tree-toggle { padding: 0 4px; }
+</style>
+<script>
+document.addEventListener("click", function (e) {
+  var btn = e.target.closest(".tree-toggle");
+  if (!btn) return;
+  var row = btn.closest("tr"), table = row.closest("table");
+  var open = btn.getAttribute("aria-expanded") !== "true";
+  function children(id) {
+    return Array.prototype.filter.call(table.querySelectorAll(".tree-row"), function (r) {
+      return r.getAttribute("data-parent") === id;
+    });
+  }
+  function close(id) {  // hide everything below, and reset the buttons there
+    children(id).forEach(function (r) {
+      r.style.display = "none";
+      var b = r.querySelector(".tree-toggle");
+      if (b) { b.setAttribute("aria-expanded", "false"); b.innerHTML = "&#9656;"; }
+      close(r.getAttribute("data-id"));
+    });
+  }
+  var id = row.getAttribute("data-id");
+  if (open) children(id).forEach(function (r) { r.style.display = ""; });
+  else close(id);
+  btn.setAttribute("aria-expanded", open ? "true" : "false");
+  btn.innerHTML = open ? "&#9662;" : "&#9656;";
+});
+</script>
 {% call lib.accordion_tag('by_faction',"By Faction", False) %}
   <table class="table table-striped table-hover">
     <thead>

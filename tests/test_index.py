@@ -134,7 +134,12 @@ def test_a_parent_franchise_counts_the_figures_below_it(auth_client, captured):
         ("G1", 2),
         ("Beast Wars", 2),
     ]
-    assert "Sub-franchises of Transformers" in resp.get_data(as_text=True)
+    html = resp.get_data(as_text=True)
+    assert (
+        'data-id="f%d" data-parent="f%d"'
+        % (top["children"][0]["franchise"].id, top["franchise"].id)
+        in html
+    )
 
 
 def test_by_continuity_groups_continuities_into_families(auth_client, captured):
@@ -180,4 +185,4 @@ def test_by_continuity_groups_continuities_into_families(auth_client, captured):
         {"continuity": unused, "total": 0, "children": []}
     ]
     assert roots[2]["total"] == 1
-    assert "Continuities in Aligned" in resp.get_data(as_text=True)
+    assert 'data-parent="g%d"' % aligned["family"].id in resp.get_data(as_text=True)
