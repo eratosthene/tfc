@@ -16,10 +16,8 @@ Result = namedtuple("Result", "status detail new")
 
 REWRITE = "rewrite"
 CURRENT = "current"  # the figure is still on the page the link names
-REDIRECT = "redirect"  # the page is a redirect, not a toys page: left alone
-HEADING = "heading"  # the fragment matches a heading, not an anchor: left alone
-CASE = "case"  # the anchor differs only in capital letters: left alone
-AMBIGUOUS = "ambiguous"  # more than one entry has that anchor: left alone
+CASE = "case"  # the section is only found ignoring capital letters: left alone
+AMBIGUOUS = "ambiguous"  # the section is on more than one page: left alone
 SEVERAL_PAGES = "several_pages"  # a disambiguation page lists more than one that has it
 NO_PAGE = "no_page"
 NO_FIGURE = "no_figure"
@@ -30,10 +28,8 @@ ERROR = "error"
 LABELS = {
     REWRITE: "will be rewritten",
     CURRENT: "already current (the figure is on that page)",
-    REDIRECT: "page only redirects (left alone)",
-    HEADING: "matches a heading, not an anchor (left alone)",
-    CASE: "the anchor differs in capital letters (left alone)",
-    AMBIGUOUS: "the anchor is on more than one entry (left alone)",
+    CASE: "the section is only found ignoring capital letters (left alone)",
+    AMBIGUOUS: "the section is on more than one page (left alone)",
     SEVERAL_PAGES: "now a disambiguation page, and several of its pages have it (left alone)",
     NO_PAGE: "the page does not exist on the wiki",
     NO_FIGURE: "no figure for that fragment on the wiki",
@@ -102,16 +98,25 @@ def check(fetcher, link):
         return Result(REWRITE, result["page"], page + "#" + fragment)
     if not result["moved"]:
         return Result(CURRENT, result["page"], None)
-    if not parser.TOYS_SUFFIX.search(result["page"]):
-        return Result(REDIRECT, result["page"], None)
-    anchored = [c for c in result["candidates"] if c["matched_by"] == "anchor"]
-    if not anchored:
-        return Result(HEADING, result["page"], None)
-    if len(anchored) > 1:
-        return Result(AMBIGUOUS, result["page"], None)
-    if not any(parser.same_fragment(fragment, a) for a in anchored[0]["anchors"]):
+    # The figure is on another page now: a toys page the character page points at, or
+    # the page a renamed page redirects to. The section must be there by exact name
+    # (an {{anchor}} or a heading, capitals included).
+    exact = [c for c in result["candidates"] if _is_exact(c, fragment)]
+    if not exact:
         return Result(CASE, result["page"], None)
+    pages = sorted({c["link"].split("#", 1)[0] for c in exact})
+    if len(pages) > 1:
+        return Result(AMBIGUOUS, ", ".join(pages), None)
     # Keep the fragment exactly as it was saved (.28-style escapes and all).
-    page = anchored[0]["link"].split("#", 1)[0]
-    new = page + "#" + fragment
-    return Result(REWRITE, result["page"], new)
+    return Result(REWRITE, result["page"], pages[0] + "#" + fragment)
+
+
+def _is_exact(candidate, fragment):
+    """The candidate's section has exactly this name: an anchor, the heading, the
+    sub-heading, or the id the wiki gave a repeated heading."""
+    names = (
+        candidate["anchors"]
+        + [candidate["heading"], candidate["subheading"]]
+        + candidate["heading_ids"]
+    )
+    return any(n and parser.same_fragment(fragment, n) for n in names)
