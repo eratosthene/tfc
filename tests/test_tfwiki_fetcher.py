@@ -265,3 +265,10 @@ def test_fetcher_from_config(tmp_path):
         {"TFWIKI_ENABLED": True, "TFWIKI_CACHE_DIR": str(tmp_path)}, get=Net()
     )
     assert f.enabled is True and f.cache_dir == str(tmp_path)
+
+
+def test_fetcher_from_config_takes_the_delay_from_the_config_or_the_caller(tmp_path):
+    assert fetcher_from_config({})._throttle.delay == 2.0
+    assert fetcher_from_config({"TFWIKI_DELAY": 5})._throttle.delay == 5.0
+    assert fetcher_from_config({"TFWIKI_DELAY": 5}, delay=9)._throttle.delay == 9.0
+    assert fetcher_from_config({"TFWIKI_DELAY": 0.1})._throttle.delay == 2.0

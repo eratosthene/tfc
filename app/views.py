@@ -7,6 +7,7 @@ from sqlalchemy import select
 from wtforms import TextAreaField, widgets
 from app import app, appbuilder
 from app import continuities  # noqa: F401 (registers flask set-continuity-names)
+from app import modernise  # noqa: F401 (registers flask modernise-links)
 from app.franchises import FigureInterface, NameSortedInterface, check_parent
 from app.models import (
     Character,

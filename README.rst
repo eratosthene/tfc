@@ -128,6 +128,38 @@ a 429 or 503, sends a User-Agent naming this repository, and caches every page b
 title, so a page is fetched once. Cached pages are readable with fetching off. The
 recorded pages the tests use are in ``tests/fixtures/tfwiki`` (see its README).
 
+Modernising old links
+~~~~~~~~~~~~~~~~~~~~~
+
+Many saved figure links are in the old form ``Name_(G1)#Anchor``; the wiki has
+since moved the toys of long character pages to ``Name/toys``.
+``flask modernise-links`` rewrites such a link to ``Name/toys#Anchor`` only when
+the toys page really has that ``{{anchor}}``, with the same capitals. Anything
+else (the page only redirects, the fragment is a heading and not an anchor, the
+anchor is on more than one entry, the page or figure is gone) is left alone and
+listed with the reason. It changes figures' *Link to Figure* and the links of
+their ancestors and pack-mates, and nothing else.
+
+It never fetches by default: it reads the cache (``TFWIKI_CACHE_DIR``) and says
+how many pages are missing. Without ``--apply`` it saves nothing::
+
+	flask modernise-links                 # what the cached pages say
+	flask modernise-links --apply         # save those rewrites
+
+To fill the cache, set ``TFWIKI_ENABLED = True`` in ``config.py`` (tfwiki.net's
+robots.txt disallows automated clients; this is a deliberate, personal, low-rate
+use) and run in small batches, each page two seconds after the last (longer with
+``TFWIKI_DELAY`` in ``config.py`` or ``--delay SECONDS``; never shorter than two),
+cached for good, stopping if the wiki says to slow down::
+
+	flask modernise-links --fetch --limit 50
+	flask modernise-links --fetch --limit 50 --delay 5     # gentler
+
+In Docker, ``docker/compose.yml`` mounts ``tfwiki-cache/`` at the repo root; make
+it writable first with ``mkdir -p tfwiki-cache && chown 1000 tfwiki-cache``, and
+run the command with ``docker compose -f docker/compose.yml exec tfc flask ...``.
+Turn ``TFWIKI_ENABLED`` off again afterwards.
+
 Tests
 ~~~~~
 

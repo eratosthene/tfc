@@ -72,3 +72,6 @@ IMG_SIZE = (2000, 2000, False)
 # readable even when this is off.
 TFWIKI_ENABLED = False
 TFWIKI_CACHE_DIR = os.path.join(basedir, "tfwiki-cache")
+# Seconds between two requests. It can be made longer, to be gentler, but never
+# shorter than 2: a smaller number is raised to 2.
+TFWIKI_DELAY = 2.0
