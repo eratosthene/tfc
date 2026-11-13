@@ -229,6 +229,14 @@ class RefreshFigureView(BaseView):
             **kwargs,
         )
 
+    def _expired(self, pk):
+        """The form's token ran out (the page was open a while): nothing was
+        done; send the user back to the figure to try again."""
+        flash(
+            "That page had expired, so nothing was done. Please try again.", "warning"
+        )
+        return redirect(url_for("FigureModelView.edit", pk=str(pk)))
+
     def _figure(self, pk):
         figure = db.session.get(Figure, pk)
         if figure is None:
@@ -270,7 +278,7 @@ class RefreshFigureView(BaseView):
     @has_access
     def compare(self, pk):
         if not CsrfOnly().validate_on_submit():
-            abort(400)
+            return self._expired(pk)
         figure = self._figure(pk)
         pick = request.form.get("pick", "")
         return self._diff(
@@ -283,7 +291,7 @@ class RefreshFigureView(BaseView):
     @has_access
     def apply(self, pk):
         if not CsrfOnly().validate_on_submit():
-            abort(400)
+            return self._expired(pk)
         if not appbuilder.sm.has_access("can_edit", "FigureModelView"):
             abort(403)
         figure = self._figure(pk)

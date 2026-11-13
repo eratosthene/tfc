@@ -407,15 +407,16 @@ def test_applying_needs_permission_to_edit_figures(
     assert refetch(pk).name == "Optimus Prime"
 
 
-def test_the_buttons_need_a_token(auth_client, cached, seed, csrf_on):
+def test_an_expired_token_goes_back_to_the_figure_with_a_message(
+    auth_client, cached, seed, csrf_on
+):
     pk = figure_for(seed)
-    assert auth_client.post("/refreshfigure/%s/compare" % pk).status_code == 400
-    assert (
-        auth_client.post(
-            "/refreshfigure/%s/apply" % pk, data={"choice_name": "accept"}
-        ).status_code
-        == 400
-    )
+    for path, data in (("compare", {}), ("apply", {"choice_name": "accept"})):
+        resp = auth_client.post("/refreshfigure/%s/%s" % (pk, path), data=data)
+        assert resp.status_code == 302
+        assert "/edit/%s" % pk in resp.headers["Location"]
+        page = auth_client.get(resp.headers["Location"]).get_data(as_text=True)
+        assert "That page had expired" in page
     assert refetch(pk).name == "Optimus Prime"
 
 
