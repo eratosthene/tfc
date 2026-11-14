@@ -37,12 +37,21 @@ class ParseError(ValueError):
 
 
 def decode_anchor(text):
-    """MediaWiki's old fragment escaping: ``.28`` is ``(`` and so on."""
-    return re.sub(
-        r"\.([0-9A-F]{2})",
-        lambda m: bytes([int(m.group(1), 16)]).decode("latin-1"),
-        text,
-    )
+    """MediaWiki's old fragment escaping: ``.28`` is ``(`` and so on.
+
+    The escapes are the bytes of the UTF-8 text, so a run of them is decoded
+    together: ``.C3.97`` is ``\u00d7`` (not ``\u00c3`` and a control character). A
+    run that is not valid UTF-8 is read as Latin-1, as before.
+    """
+
+    def run(found):
+        raw = bytes(int(h, 16) for h in re.findall(r"\.([0-9A-F]{2})", found.group(0)))
+        try:
+            return raw.decode("utf-8")
+        except UnicodeDecodeError:
+            return raw.decode("latin-1")
+
+    return re.sub(r"(?:\.[0-9A-F]{2})+", run, text)
 
 
 def norm(text):
