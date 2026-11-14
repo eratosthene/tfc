@@ -79,6 +79,16 @@ def test_anchors_and_headings_compare_alike():
     assert parser.norm("Legacy ") == parser.norm("legacy")
 
 
+def test_anchors_with_non_ascii_characters_compare_alike():
+    # MediaWiki escapes the UTF-8 bytes: .C3.97 is the multiplication sign.
+    fragment = "Street_Fighter_II_.C3.97_Transformers"
+    assert parser.decode_anchor(fragment) == "Street_Fighter_II_\u00d7_Transformers"
+    assert parser.norm(fragment) == parser.norm("Street Fighter II \u00d7 Transformers")
+    assert parser.same_fragment(fragment, "Street Fighter II \u00d7 Transformers")
+    # A run that is not valid UTF-8 is still read as Latin-1.
+    assert parser.decode_anchor("Caf.E9") == "Caf\u00e9"
+
+
 def test_page_urls():
     assert parser.page_url("Scourge (G1)/toys", "Studio Series") == (
         WIKI + "Scourge_(G1)/toys#Studio_Series"
