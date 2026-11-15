@@ -137,12 +137,12 @@ def compute(figure, result, index, lead):
                 notes.get(key, ""),
             )
     if fields["accessories"] and not same_text(
-        fields["accessories"].casefold(), (figure.accessories_text or "").casefold()
+        fields["accessories"].casefold(), (figure.accessories or "").casefold()
     ):
         add(
-            "accessories_text",
+            "accessories",
             "Accessories",
-            figure.accessories_text or "",
+            figure.accessories or "",
             fields["accessories"],
             fields["accessories"],
         )
@@ -188,7 +188,7 @@ def apply_changes(figure, chosen, saved_image):
             "name",
             "release_year",
             "link",
-            "accessories_text",
+            "accessories",
             "hasbro_id",
             "takara_id",
         ):

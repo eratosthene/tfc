@@ -32,7 +32,7 @@ def _add_known_data():
         return Figure(
             name=name,
             release_year=1990,
-            character_new=char,
+            character=char,
             faction=faction,
             franchise=franchises,
             tooling=tooling,
@@ -160,7 +160,7 @@ def test_by_continuity_groups_continuities_into_families(auth_client, captured):
             Figure(
                 name=name,
                 release_year=1990,
-                character_new=chars[char],
+                character=chars[char],
                 faction=faction,
             )
         )

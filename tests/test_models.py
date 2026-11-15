@@ -1,11 +1,10 @@
-"""Model helpers: the TFWikiLink name parsing and the HTML the views show."""
+"""Model helpers: the HTML the models give the views."""
 
 import pytest
 from flask_appbuilder.filemanager import thumbgen_filename
 
 from app import app as flask_app, db
 from app.models import (
-    Accessory,
     Category,
     Character,
     Continuity,
@@ -14,74 +13,10 @@ from app.models import (
     Figure,
     FigureReference,
     Franchise,
-    TFWikiLink,
     Tooling,
 )
 
 WIKI = "https://tfwiki.net/wiki/"
-
-# (link, __str__, link_type) for each branch of the parsing. The qualifier keeps
-# its closing parenthesis, because only "_(" is split on.
-LINKS = [
-    # No fragment: a character, with or without a "_(" qualifier.
-    (WIKI + "Optimus_Prime", "N [character]", "Character"),
-    (WIKI + "Optimus_Prime_(G1)", "N (G1) [character]", "Character (G1)"),
-    (WIKI + "Prime_(Movie)_(Leader)", "N (Leader) [character]", "Character (Leader)"),
-    # Fragment: a figure, plain or with a qualified page name.
-    (WIKI + "Prime#Gen_1_Toy", "N @ Gen 1 Toy [figure]", "Figure (Gen 1 Toy)"),
-    (WIKI + "Prime_(G1)#Gen_1", "N (G1) @ Gen 1 [figure]", "Figure (Gen 1)"),
-    # A "toys" or "Generations_toys" last segment: the page before it is used.
-    (WIKI + "Prime/toys#Gen_1", "N @ Gen 1 [figure]", "Figure (Gen 1)"),
-    (WIKI + "Prime_(G1)/toys#Gen_1", "N (G1) @ Gen 1 [figure]", "Figure (Gen 1)"),
-    (
-        WIKI + "Prime/Generations_toys#Legends",
-        "N @ Legends [figure]",
-        "Figure (Legends)",
-    ),
-    (
-        WIKI + "Prime_(G1)/Generations_toys#Legends",
-        "N (G1) @ Legends [figure]",
-        "Figure (Legends)",
-    ),
-]
-
-
-@pytest.mark.parametrize("link,text,kind", LINKS)
-def test_tfwikilink_str_and_type(link, text, kind):
-    obj = TFWikiLink(name="N", link=link)
-    assert str(obj) == text
-    assert repr(obj) == text
-    assert obj.link_type() == kind
-
-
-@pytest.mark.parametrize(
-    "link,search",
-    [
-        (WIKI + "Optimus_Prime", "_flt_0_character=7"),
-        (WIKI + "Optimus_Prime_(G1)", "_flt_0_character=7"),
-        (WIKI + "Prime#Toy", "_flt_0_figure_link=7"),
-    ],
-)
-def test_tfwikilink_figure_list(link, search):
-    obj = TFWikiLink(id=7, name="N", link=link)
-    with flask_app.test_request_context():
-        html = obj.figure_list()
-    assert search in html
-    assert "Search for this" in html
-
-
-@pytest.mark.parametrize(
-    "link,expected",
-    [(WIKI + "Prime#Toy", True), (WIKI + "Prime", False)],
-)
-def test_tfwikilink_history_list(link, expected):
-    obj = TFWikiLink(id=7, name="N", link=link)
-    with flask_app.test_request_context():
-        html = obj.history_list()
-    if expected:
-        assert "_flt_0_history=7" in html and "Ancestor" in html
-    else:
-        assert html == ""
 
 
 @pytest.mark.parametrize(
@@ -90,7 +25,6 @@ def test_tfwikilink_history_list(link, expected):
         (Franchise, "_flt_0_franchise"),
         (Faction, "_flt_0_faction"),
         (Tooling, "_flt_0_tooling"),
-        (Accessory, "_flt_0_accessories"),
         (Category, "_flt_0_categories"),
     ],
 )
@@ -103,7 +37,7 @@ def test_figure_list_links_to_figure_search(cls, param):
     assert "Search Figures" in html
 
 
-@pytest.mark.parametrize("cls", [Franchise, Faction, Tooling, Accessory, Category])
+@pytest.mark.parametrize("cls", [Franchise, Faction, Tooling, Category])
 def test_named_str_repr(cls):
     obj = cls(name="Thing")
     assert str(obj) == "Thing" and repr(obj) == "Thing"
@@ -165,7 +99,7 @@ def test_character_and_figure_link_show():
     fig = Figure(name="F")
     assert fig.character_show() == "" and fig.figure_link_show() == ""
     char = Character(name="Prime", link=WIKI + "Prime_(G1)")
-    fig.character_new = char
+    fig.character = char
     assert fig.character_show() == '<a href="%sPrime_(G1)">Prime</a>' % WIKI
     char.continuity = Continuity(name="G1")
     assert fig.character_show() == '<a href="%sPrime_(G1)">Prime (G1)</a>' % WIKI
@@ -238,7 +172,7 @@ def test_figure_continuity_and_family_show():
     with flask_app.test_request_context():
         assert fig.continuity_show() == "" and fig.family_show() == ""
         char = Character(name="C", link=WIKI + "C")
-        fig.character_new = char
+        fig.character = char
         assert fig.continuity_show() == "" and fig.family_show() == ""
         char.continuity = Continuity(id=4, name="G1")
         assert "/continuitymodelview/show/4" in fig.continuity_show()

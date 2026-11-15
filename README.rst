@@ -280,36 +280,37 @@ CI also requires 100% line coverage of ``app/`` (``--cov=app --cov-fail-under=10
 see ``.coveragerc`` for what is not measured: ``migrations/``, ``scripts/`` and
 the tests). Check it locally with ``python -m pytest --cov=app --cov-report=term-missing``.
 
-Cutover runbook
-~~~~~~~~~~~~~~~
+Dropping the old tables
+~~~~~~~~~~~~~~~~~~~~~~~
 
-What changes: Figures use *Character* (with its continuity and continuity
-family), a *Link to Figure*, *Accessories* as comma-separated text, and *Model
-History* / *Packed With* as one ``Name | link`` per line. The TFWikiLinks and
-Accessories menus are gone; Characters, Continuities and Continuity Families
-replace them. The Figure list can be filtered by character, continuity,
-continuity family, ancestor link and accessory text.
+The move to the new data model (``docs/proposals/data-model.md``) has two
+halves. The first, long done, added the new structures and copied the data. The
+last one, revision ``f6b8d0e2a457``, drops what they replaced: ``tf_wiki_link``,
+``accessory``, ``figure_accessory``, ``figure_history``, ``figure_packed_with``,
+``figure.figure_link_id`` and the old ``figure.character_id``. It then renames
+``character_id_new`` to ``character_id`` (now NOT NULL) and ``accessories_text``
+to ``accessories``.
 
-1. Stop editing in the app, then ``scripts/backup.sh``. Check both files exist.
-2. If anything was edited since the last ``migrate_data_model.py apply``, copy it
-   over again, with the same flags, and check it (a hand-set family is kept)::
+**This cannot be undone from the app.** The downgrade only recreates the empty
+tables and columns; the old data comes back from a backup. Because the container
+runs ``flask db upgrade`` on start, deploying an image that contains this
+revision applies it. So deploy it only when you mean to:
 
-	docker compose -f docker/compose.yml exec tfc python scripts/migrate_data_model.py apply --again ...
-	docker compose -f docker/compose.yml exec tfc python scripts/migrate_data_model.py verify
+1. Stop editing, then ``scripts/backup.sh``. Check that both files exist.
+2. Deploy. The start-up upgrade runs the revision. It refuses, changing nothing,
+   if the database holds data and the old ``scripts/migrate_data_model.py
+   verify`` was never recorded (the ``data_model_migration`` table), or while any
+   figure has no character. A new, empty database upgrades straight through.
+3. Click through a few figures (list, show, edit), Characters, the franchise and
+   continuity filters, Add from TFWiki and a refresh.
+4. To go back, restore the backup (below) and redeploy the previous image.
 
-3. Deploy the new version. The container start runs ``flask db upgrade``
-   (``d4f6b8c0e235``: the old character column may be empty).
-4. Click through a few figures: one with ancestors and pack-mates (the
-   "In collection" and "Other figures from this ancestor" links), Characters,
-   Continuities, Continuity Families, and the franchise and continuity filters.
-5. To go back, before anyone edits in the new version: redeploy the previous
-   image, which reads the untouched old tables. If figures were edited in the new
-   version, run ``migrate_data_model.py reverse`` first (from the new image), then
-   redeploy the old one; or restore the backup.
-6. A few weeks later, the contract PR drops the old tables. Its revision refuses to
-   run until ``verify`` has passed.
-
-The permissions of the removed views stay in the database harmlessly.
+A URL saved before the change that filters on ``_flt_0_character_new`` now needs
+``_flt_0_character``. ``data_model_migration`` (the record of the old copy) and
+``legacy_id`` (the MongoDB id of the original rows) stay; either can be dropped in
+a later cleanup. The scripts that did the copy (``migrate_data_model.py`` and
+``migrate_mongo_to_sql.py``) were removed with the tables they read; they are in
+the git history before that change.
 
 Continuity full names
 ~~~~~~~~~~~~~~~~~~~~~
@@ -345,117 +346,6 @@ Figures already tagged with every level by hand are not harmed. To tidy them
 after setting the parents, ``flask prune-franchises`` lists the tags that a
 lower tag on the same figure already covers, and changes nothing;
 ``flask prune-franchises --apply`` removes them. It never runs by itself.
-
-Moving to the new data model
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``docs/proposals/data-model.md`` describes the new model (characters,
-continuities, per-figure references, accessories as text). The revisions only
-*add* tables and columns next to the old ones, and run on deploy like any
-revision. Since the cutover the app reads and writes the new structures; the old
-tables and columns stay, untouched, for about four weeks, until the contract PR.
-
-``scripts/migrate_data_model.py`` fills them from the old tables. It never
-deletes or changes the old tables. **Take a backup first** (``scripts/backup.sh``),
-then, from the repo root on the server:
-
-.. code-block:: bash
-
-	docker compose -f docker/compose.yml exec tfc python scripts/migrate_data_model.py dry-run
-	docker compose -f docker/compose.yml exec tfc python scripts/migrate_data_model.py apply
-	docker compose -f docker/compose.yml exec tfc python scripts/migrate_data_model.py verify
-
-``dry-run`` does everything in a transaction, prints the plan and the lists to
-look at (characters with no ``(X)`` continuity, character links rewritten, links
-used in more than one role, links that are not tfwiki.net, links nothing uses,
-accessories whose name contains a comma, missing upload files), and rolls
-back. ``apply`` does it for real, checks every figure against the old data, and
-refuses to commit if anything differs. ``verify`` repeats the comparison and
-records that it passed (the revision that finally drops the old tables needs
-that). ``reverse`` rebuilds the old structures from the new ones and clears
-those records. Options: ``--no-continuity NAME`` leaves a suffix that is not a
-continuity (``facility``) blank, ``--family "NAME=SUFFIX,SUFFIX"`` (repeatable) puts those suffixes' continuities in a
-continuity family, creating it, ``--json PATH`` also writes the report, and
-``--again`` lets ``apply`` run twice, overwriting edits made in the new
-structures since. Run ``verify`` straight after ``apply``: once the new
-structures are edited it reports those edits as differences.
-
-Migrating the Mongo data
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-One-time: ``scripts/migrate_mongo_to_sql.py`` copies the old MongoDB data and
-its GridFS images into MariaDB and the ``uploads`` folder (sub-issue #8). It
-only reads Mongo. The MariaDB tables get a ``legacy_id`` column (the Mongo
-ObjectId) from the ``a1c3e5f7b902`` migration; each row is upserted on it, so
-the script can be re-run safely. **Run it before anyone edits data in the new
-app**: a re-run puts the Mongo values back over the rows.
-
-How it maps: lookup tables first, then TFWikiLink, Figure, and the figure
-association rows, with list order kept in ``position``. Each image is written
-byte for byte to ``uploads/`` named ``<uuid>_sep_<name>``, as the app names
-uploads, with its thumbnail made by Flask-AppBuilder's ImageManager (the app's
-code). The original is kept as it was, not shrunk to 2000px. Anything that
-cannot migrate is left out and listed (a figure whose character or faction no
-longer exists, a name too long for its column); list entries that point at a
-deleted document are dropped with a warning.
-
-``docker/compose.migrate.yml`` has a throwaway MongoDB for a *restored copy* of
-the dump, so the real Mongo is never connected to. Steps, from the repo root on
-the server (add ``sudo`` to docker as needed):
-
-1. Back up Mongo, and the new side, first. ``MONGO`` is the running Mongo
-   container's name (``docker ps``)::
-
-	mkdir -p backups
-	docker exec MONGO mongodump --db tfc --archive > backups/mongo-$(date +%Y%m%d-%H%M%S).archive
-	ls -l backups/mongo-*.archive           # not empty? the dump says "done dumping" for each collection
-	scripts/backup.sh                       # the MariaDB database and uploads, as they are now
-
-2. Be on this code, with the tables up to date (starting the container runs ``flask db upgrade``,
-   which adds ``legacy_id``), and ``uploads/`` present::
-
-	docker/live-up.sh
-
-3. Restore the dump into the throwaway Mongo::
-
-	docker compose -f docker/compose.migrate.yml up -d mongo
-	docker compose -f docker/compose.migrate.yml exec -T mongo mongorestore --archive --nsInclude 'tfc.*' < backups/mongo-STAMP.archive
-
-4. Dry run: reads everything, checks each image can be opened, and writes
-   nothing. It prints the Mongo counts and any problems::
-
-	docker compose -f docker/compose.migrate.yml run --rm migrate --dry-run
-
-   If it says no collection was found, the names printed are what is in the
-   dump; adjust ``SPECS`` in the script.
-
-5. The real run. It prints a verification report: counts per collection and
-   per association, every field and list compared, every image compared by
-   length and SHA-256, and ten figures to check by hand::
-
-	docker compose -f docker/compose.migrate.yml run --rm migrate | tee backups/migration-report.txt
-
-   Exit status 0 and "OK: nothing wrong found." mean the counts match and every
-   image matches its source. Anything under "Problems" or "Mismatches" needs a
-   look before going on; fixing it and re-running is safe.
-   ``... run --rm migrate --verify-only`` repeats just the comparison, and
-   ``--sample N --seed S`` picks the figures to spot-check.
-
-6. Open the app and check the ten figures listed (``/figuremodelview/show/<id>``):
-   name, year, faction, character, franchises, tooling, lists in order, and the
-   picture and thumbnail.
-
-7. Done: stop the throwaway Mongo, keeping the dump (``-v`` deletes its data)::
-
-	docker compose -f docker/compose.migrate.yml down -v
-
-The ``mongo`` container on the server and its data stay until the checks above
-pass and the dump is kept somewhere safe; only then remove it. ``compose.yml``
-has no Mongo service now, so there is nothing to remove from it. Once this has
-been run and checked, the script stays in ``scripts/`` as a record (its header
-says so), and ``legacy_id`` can be dropped in a later cleanup once sub-issue 13
-no longer needs it. The tests for the script run against a real MongoDB when
-``TEST_MONGO_URI`` is set, as in CI.
 
 Backup
 ~~~~~~
