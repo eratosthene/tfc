@@ -31,7 +31,7 @@ CASES = [
         lambda s: {
             "name": "Megatron",
             "release_year": "1984",
-            "character_new": str(s["character"].id),
+            "character": str(s["character"].id),
             "faction": str(s["faction"].id),
             "franchise": [str(s["franchise"].id)],
             "tooling": [str(s["tooling"].id)],
@@ -208,7 +208,7 @@ def test_figure_with_no_optional_fields_shows(auth_client, seed):
     other = Figure(
         name="Bare",
         release_year=2000,
-        character_new=fig.character_new,
+        character=fig.character,
         faction=fig.faction,
     )
     db.session.add(other)
@@ -223,7 +223,7 @@ def test_the_old_link_and_accessory_views_are_gone(auth_client, seed):
 
 def test_the_list_pages_link_to_their_figures(auth_client, seed):
     for view, text in (
-        ("charactermodelview", "_flt_0_character_new=%s" % seed["character"].id),
+        ("charactermodelview", "_flt_0_character=%s" % seed["character"].id),
         ("continuitymodelview", "_flt_0_continuity=%s" % seed["continuity"].id),
         ("continuityfamilymodelview", "_flt_0_family=%s" % seed["family"].id),
     ):
@@ -320,11 +320,11 @@ def test_list_views_with_images_show_picture_links(auth_client):
     assert "/factionmodelview/faction_img/%s" % faction.id in html
 
 
-def test_the_forms_use_the_new_structures_and_not_the_old():
+def test_the_forms_use_the_new_structures():
     from app.views import FigureModelView, FranchiseModelView
 
-    old = {"figure_link", "character", "history", "packed_with", "accessories"}
-    new = {"link", "accessories_text", "character_new"}
+    old = {"figure_link", "history", "packed_with"}
+    new = {"link", "accessories", "character"}
     for columns in (
         FigureModelView.add_columns,
         FigureModelView.edit_columns,

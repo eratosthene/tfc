@@ -50,9 +50,9 @@ def test_the_button_downloads_the_picture_and_the_review_shows_it(
 
 
 def test_what_was_typed_survives_the_button(auth_client, online, seed):
-    html = press(auth_client, seed, name="Typed name", accessories_text="A, B")
+    html = press(auth_client, seed, name="Typed name", accessories="A, B")
     values = page_values(html)
-    assert values["name"] == "Typed name" and "A, B" in values["accessories_text"]
+    assert values["name"] == "Typed name" and "A, B" in values["accessories"]
     pictures.discard(held(html))
 
 

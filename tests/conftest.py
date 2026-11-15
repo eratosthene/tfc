@@ -115,12 +115,12 @@ def seed():
         name="Optimus Prime",
         release_year=1984,
         franchise=[franchise],
-        character_new=character,
+        character=character,
         link="https://tfwiki.net/wiki/Optimus_Prime_(G1)#Generation_1",
         tooling=[tooling],
         faction=faction,
         categories=[category],
-        accessories_text="Blaster, Axe",
+        accessories="Blaster, Axe",
         references=[
             FigureReference(
                 kind="ancestor",

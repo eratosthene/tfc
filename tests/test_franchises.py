@@ -16,7 +16,7 @@ from app.franchises import (
     parent_map,
     prune_franchises,
 )
-from app.models import Faction, Figure, Franchise, TFWikiLink
+from app.models import Character, Faction, Figure, Franchise
 
 
 def franchise(name, parent=None):
@@ -46,7 +46,7 @@ def figure(name, *franchises):
             name=name,
             release_year=2022,
             faction=db.session.scalar(select(Faction)) or Faction(name="Autobot"),
-            character=TFWikiLink(name=name, link="https://tfwiki.net/wiki/" + name),
+            character=Character(name=name, link="https://tfwiki.net/wiki/" + name),
             franchise=list(franchises),
         )
     )

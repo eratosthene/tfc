@@ -371,6 +371,7 @@ def old_links(seed):
         name="Other",
         release_year=2000,
         faction=figure.faction,
+        character_id=figure.character_id,
         link=WIKI + "Alpha_Trion_(G1)#sdcc2015",  # differs only in case
     )
     db.session.add(other)
@@ -629,6 +630,7 @@ def daburu(seed):
         name="Cerebros",
         release_year=2016,
         faction=figure.faction,
+        character_id=figure.character_id,
         link=WIKI + "Cerebros_(G1)/toys#Titans_Return",
     )
     db.session.add(other)
@@ -671,6 +673,7 @@ def test_replace_link_changes_only_exact_matches(daburu, cache_only):
         name="Case",
         release_year=2000,
         faction=db.session.get(Figure, daburu["figure"].id).faction,
+        character_id=db.session.get(Figure, daburu["figure"].id).character_id,
         link=OLD_DABURU.replace("Daburu", "daburu"),  # differs only in capitals
     )
     db.session.add(other)

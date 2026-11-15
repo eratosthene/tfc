@@ -205,7 +205,7 @@ def people(tmp_path, monkeypatch, seed):
                     release_year=2020,
                     faction=faction,
                     link=figure_link,
-                    character_new=person,
+                    character=person,
                 )
             )
         made[key] = person.id

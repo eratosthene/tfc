@@ -57,7 +57,7 @@ def _insert_out_of_order():
             Figure(
                 name=n,
                 release_year=1984,
-                character_new=characters[0],
+                character=characters[0],
                 faction=faction,
                 franchise=[franchise],
             )
