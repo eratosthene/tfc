@@ -1,5 +1,5 @@
 # One-time Mongo to MariaDB migration (sub-issue #8). Run from the repo root;
-# the steps are in README.rst, "Migrating the Mongo data". It is separate from
+# the steps are in README.md, "Migrating the Mongo data". It is separate from
 # compose.yml so the live app has no Mongo in it any more.
 #
 # A throwaway MongoDB holds a *restored copy* of the backup, so the real Mongo
