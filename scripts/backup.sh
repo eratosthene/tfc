@@ -10,7 +10,7 @@
 # SQLALCHEMY_DATABASE_URI in docker/.env, using mariadb-dump or mysqldump on
 # the host. MongoDB is no longer used and is not backed up here. With no URI the
 # dump is skipped with a warning. Run it from cron or launchd; it works from any
-# directory. Restore steps are in README.rst.
+# directory. Restore steps are in README.md.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

@@ -2,7 +2,7 @@
 """One-time migration of TFC's data from MongoDB to MariaDB (sub-issue #8).
 
 ALREADY RUN? This script is kept for the record, and so a later cleanup can use
-the ``legacy_id`` columns. See "Migrating the Mongo data" in README.rst for how
+the ``legacy_id`` columns. See "Migrating the Mongo data" in README.md for how
 to run it, and what to check, before the mongo service goes.
 
 It reads the old ``tfc`` Mongo database (collections and GridFS images, as
