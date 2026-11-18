@@ -62,10 +62,17 @@ document.body.appendChild(d)})();
 """
 
 
+def one_line(js):
+    """A script as one line, for a bookmark's address. Every line of it must end
+    where a statement can, and it must hold no %, which a browser would read as
+    the start of an escape."""
+    return "".join(line.strip() for line in js.strip().splitlines())
+
+
 def bookmarklet(confirm_url):
     """The bookmark's address: the script on one line, with the confirm page's
     address filled in."""
-    code = "".join(line.strip() for line in BOOKMARKLET_JS.strip().splitlines())
+    code = one_line(BOOKMARKLET_JS)
     return "javascript:" + code.replace("__CONFIRM__", json.dumps(confirm_url))
 
 
@@ -161,10 +168,20 @@ class Af411QueueView(BaseView):
         if not link:
             flash("Paste the figure's ActionFigure411 address first.", "warning")
             return redirect(url_for("Af411QueueView.queue"))
-        if db.session.scalar(
-            select(Figure.id).where(Figure.af411_link == link, Figure.id != pk).limit(1)
-        ):
-            flash("Another figure already has this link (saved anyway).", "warning")
+        others = db.session.scalar(
+            select(db.func.count(Figure.id)).where(
+                Figure.af411_link == link, Figure.id != pk
+            )
+        )
+        if others:
+            flash(
+                "%s already %s this link (normal for a set)."
+                % (
+                    "1 other figure" if others == 1 else "%d other figures" % others,
+                    "has" if others == 1 else "have",
+                ),
+                "info",
+            )
         figure.af411_link = link
         figure.af411_skipped = False
         db.session.commit()

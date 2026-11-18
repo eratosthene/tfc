@@ -16,6 +16,7 @@ from wtforms import TextAreaField, widgets
 from app import app, appbuilder, db
 from app import continuities  # noqa: F401 (registers flask set-continuity-names)
 from app.addfigure import AddFromTFWikiView, CsrfOnly
+from app.af411collection import Af411ImportView
 from app.af411queue import Af411QueueView
 from app.refresh import RefreshFigureView
 from app import modernise  # noqa: F401 (registers flask modernise-links)
@@ -294,6 +295,7 @@ class FigureModelView(ModelView):
         "family": "Continuity family",
         "price_check_show": "Price check",
         "af411_link": "ActionFigure411 link",
+        "af411_average_show": "ActionFigure411 average (whole box)",
     }
     list_columns = [
         "name",
@@ -326,6 +328,7 @@ class FigureModelView(ModelView):
         "condition",
         "quantity",
         "sell_price",
+        "af411_average_show",
         "price_check_show",
     ]
     # Pinned: the form shows the new structures. The old ones (figure_link,
@@ -440,6 +443,7 @@ appbuilder.add_view(FigureModelView, "Figures")
 appbuilder.add_view(AddFromTFWikiView, "Add from TFWiki")
 appbuilder.add_view(Af411QueueView, "ActionFigure411 links")
 appbuilder.add_view_no_menu(RefreshFigureView)
+appbuilder.add_view_no_menu(Af411ImportView)
 appbuilder.add_view(CharacterModelView, "Characters", category="Characters")
 appbuilder.add_view(
     MultipleFigureCharacterView,
