@@ -16,6 +16,7 @@ from wtforms import TextAreaField, widgets
 from app import app, appbuilder, db
 from app import continuities  # noqa: F401 (registers flask set-continuity-names)
 from app.addfigure import AddFromTFWikiView, CsrfOnly
+from app.af411queue import Af411QueueView
 from app.refresh import RefreshFigureView
 from app import modernise  # noqa: F401 (registers flask modernise-links)
 from app.franchises import FigureInterface, NameSortedInterface, check_parent
@@ -437,6 +438,7 @@ class FigureModelView(ModelView):
 
 appbuilder.add_view(FigureModelView, "Figures")
 appbuilder.add_view(AddFromTFWikiView, "Add from TFWiki")
+appbuilder.add_view(Af411QueueView, "ActionFigure411 links")
 appbuilder.add_view_no_menu(RefreshFigureView)
 appbuilder.add_view(CharacterModelView, "Characters", category="Characters")
 appbuilder.add_view(

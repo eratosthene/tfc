@@ -170,6 +170,23 @@ deletes a downloaded picture that no figure uses yet; a picture a figure already
 is never deleted. A picture you downloaded and then abandoned by leaving the page
 stays in the uploads folder until you delete it.
 
+### Prices and ActionFigure411
+
+A figure's page has a **Price check** row: eBay's sold listings, Transformerland's
+store and ActionFigure411, each a search with the figure's name filled in. Nothing
+is fetched; the links open in your browser. **Sell price** is typed in by hand.
+
+ActionFigure411's figure pages show eBay sold and Buy It Now averages. Its bot
+protection turns the app away (it answers 403 to an honest User-Agent), so the app
+never contacts it. Instead each figure can hold its page in **ActionFigure411
+link**, and the price check then goes straight to it. The **ActionFigure411 links**
+menu item is a queue of the figures without one: *Search* opens the site's search
+in a new tab, and the address of the right figure is pasted into the row's box.
+The queue page also offers a bookmarklet to drag to the bookmarks bar; used on that
+search results tab, it lists the figures the page shows and sends your pick back to
+a confirm page. It reads only the page you already have open. *Skip* takes a figure
+with no page there out of the queue (*Show skipped figures* brings it back).
+
 ### Refreshing a figure from the wiki
 
 The **Edit Figure** page has a panel using the figure's saved *Link to Figure*
