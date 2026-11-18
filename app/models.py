@@ -6,6 +6,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Table,
     Text,
@@ -13,7 +14,7 @@ from sqlalchemy import (
     func,
     select,
 )
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy.orm import column_property, relationship, validates
 
 from app import db
 
@@ -452,6 +453,12 @@ class Figure(Legacy, Named, db.Model):
     takara_id = Column(String(255))
     condition = Column(String(255))
     quantity = Column(Integer, default=1)
+    # What the user hopes to get, or got, for it. Filled in by hand after looking
+    # at the sold listings that price_check_show links to; nothing updates it.
+    sell_price = Column(Numeric(10, 2))
+    # The figure's own page on actionfigure411.com, pasted in once it is found
+    # (see price_check_show); it shows the eBay averages.
+    af411_link = Column(String(500))
     # The new structures, filled by scripts/migrate_data_model.py and not read by
     # the views yet. They take their final names (link, character_id and
     # accessories) when the old columns go.
@@ -597,6 +604,13 @@ class Figure(Legacy, Named, db.Model):
             continuity.family,
         )
 
+    def price_check_show(self):
+        from app.pricecheck import price_check_links
+
+        return Markup(" &middot; ").join(
+            _link(url, label) for label, url in price_check_links(self)
+        )
+
     def franchise_show(self):
         # The tagged franchises, then the ones above them (app/franchises.py).
         from app.franchises import effective_franchises
@@ -638,6 +652,21 @@ class Figure(Legacy, Named, db.Model):
 
     def packed_with_show(self):
         return self._references_show("packed_with", False)
+
+
+# How many figures a character has: the quantities added up, one for a figure
+# with none given. Read by the Characters list, to sort and to filter on.
+Character.figure_count = column_property(
+    select(
+        func.cast(
+            func.coalesce(func.sum(func.coalesce(Figure.quantity, 1)), 0), Integer
+        )
+    )
+    .where(Figure.character_id_new == Character.id)
+    .correlate_except(Figure)
+    .scalar_subquery(),
+    deferred=False,
+)
 
 
 class FigureReference(db.Model):
