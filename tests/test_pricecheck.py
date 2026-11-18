@@ -147,3 +147,7 @@ def test_the_actionfigure411_link_is_saved_from_the_form_and_checked(auth_client
     auth_client.post(url, data=dict(data, af411_link=""))
     db.session.expire_all()
     assert db.session.get(Figure, seed["figure"].id).af411_link is None
+
+
+def test_a_figure_with_no_name_has_no_links():
+    assert price_check_links(Figure(name="  ")) == []
