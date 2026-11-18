@@ -432,7 +432,15 @@ def test_the_menu_groups_the_lookup_lists(auth_client, seed):
         assert entry in nav
     for group, members in (
         ("Classification", ("Franchises", "Factions", "Toolings", "Categories")),
-        ("Characters", ("Characters", "Continuities", "Continuity Families")),
+        (
+            "Characters",
+            (
+                "Characters",
+                "Characters with several figures",
+                "Continuities",
+                "Continuity Families",
+            ),
+        ),
     ):
         menu = flask_app.appbuilder.menu.find(group)
         assert [m.name for m in menu.childs] == list(members)
