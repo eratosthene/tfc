@@ -44,6 +44,7 @@
     {% for f in figures %}
       <tr>
         <td><a href="{{ url_for('FigureModelView.show', pk=f.id) }}">{{ f.name }}</a>
+          [{{ f.id }}]
           <small class="text-muted">{{ f.release_year }}{% if f.franchise %} &middot; {{ f.franchise|join(", ") }}{% endif %}</small></td>
         <td><a class="btn btn-default btn-sm" href="{{ search_url(f) }}" target="_blank" rel="noopener">Search</a></td>
         <td>
