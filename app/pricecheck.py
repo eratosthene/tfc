@@ -5,6 +5,7 @@ name filled in, and the user reads the prices there. (eBay's sold-price API is
 not open to individuals, and scraping its pages is against its terms.)
 """
 
+import re
 from urllib.parse import quote_plus, urlparse
 
 from app import app
@@ -13,6 +14,28 @@ EBAY_SITE = "www.ebay.com"
 TRANSFORMERLAND_PRICE_GUIDE = (
     "https://www.transformerland.com/transformers-price-guide.html"
 )
+
+
+AF411_SEARCH = "https://www.actionfigure411.com/common/search-results.php?g=3&term="
+# A figure's page ends in its number (…/optimus-prime-age-of-extinction-9419.php);
+# the guides and other pages around it do not.
+AF411_FIGURE_PAGE = re.compile(r"-\d+\.php$")
+
+
+def af411_search_url(figure):
+    return AF411_SEARCH + quote_plus((figure.name or "").strip())
+
+
+def check_af411_figure_page(value):
+    """check_af411_link, and also refuses a guide or other page that is not a
+    figure's own. Returns None for an empty box."""
+    link = check_af411_link(value)
+    if link and not AF411_FIGURE_PAGE.search(urlparse(link).path):
+        raise ValueError(
+            "That is not a figure's own ActionFigure411 page (its address ends "
+            "in a number and .php)."
+        )
+    return link
 
 
 def search_terms(figure):
@@ -59,8 +82,6 @@ def price_check_links(figure):
         ),
         (
             "ActionFigure411 (eBay averages)",
-            figure.af411_link
-            or "https://www.actionfigure411.com/common/search-results.php?g=3&term="
-            + quote_plus(name),
+            figure.af411_link or af411_search_url(figure),
         ),
     ]

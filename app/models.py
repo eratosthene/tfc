@@ -2,6 +2,7 @@ from flask import url_for
 from flask_appbuilder.models.mixins import ImageColumn
 from markupsafe import Markup, escape
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     ForeignKey,
@@ -459,6 +460,9 @@ class Figure(Legacy, Named, db.Model):
     # The figure's own page on actionfigure411.com, pasted in once it is found
     # (see price_check_show); it shows the eBay averages.
     af411_link = Column(String(500))
+    # Set on the ActionFigure411 queue for a figure that has no page there, so it
+    # stops turning up as still to do.
+    af411_skipped = Column(Boolean, nullable=False, default=False, server_default="0")
     # The new structures, filled by scripts/migrate_data_model.py and not read by
     # the views yet. They take their final names (link, character_id and
     # accessories) when the old columns go.

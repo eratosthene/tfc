@@ -449,4 +449,10 @@ def test_the_menu_groups_the_lookup_lists(auth_client, seed):
 def test_the_menu_order(auth_client, seed):
     names = [m.name for m in flask_app.appbuilder.menu.get_list()]
     ours = [n for n in names if n != "Security"]
-    assert ours == ["Figures", "Add from TFWiki", "Characters", "Classification"]
+    assert ours == [
+        "Figures",
+        "Add from TFWiki",
+        "ActionFigure411 links",
+        "Characters",
+        "Classification",
+    ]
