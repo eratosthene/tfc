@@ -218,6 +218,11 @@ def match_rows(rows):
             elif average >= retail * 3 or average * 3 <= retail:
                 entry["notes"].append("The average is far from the retail price.")
         entry["checked"] = bool(ids) and not entry["warnings"]
+        # A row naming its figures by id, all of which already have a link, is
+        # ignored by the preview.
+        entry["linked"] = (
+            entry["basis"] == "Note" and bool(ids) and all(figures[i][1] for i in ids)
+        )
     used = {i for e in results for i in e["figure_ids"]}
     missing = [
         (fid, name)
@@ -307,8 +312,15 @@ class Af411ImportView(BaseView):
         if not rows:
             return self._render("paste", problems=problems, text=text)
         entries, missing = match_rows(rows)
+        # Rows whose Note ids point at figures that already have a link are ignored.
+        skipped = sum(1 for e in entries if e["linked"])
+        entries = [e for e in entries if not e["linked"]]
         return self._render(
-            "preview", problems=problems, entries=entries, missing=missing
+            "preview",
+            problems=problems,
+            entries=entries,
+            missing=missing,
+            skipped=skipped,
         )
 
     @expose("/apply", methods=["POST"])
