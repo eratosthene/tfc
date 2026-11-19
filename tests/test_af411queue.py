@@ -34,6 +34,8 @@ def test_the_queue_lists_figures_with_no_link_and_a_search_for_each(auth_client,
         in html
     )
     assert "1 figure still to do" in html
+    # The id to paste into the AF4 Note, as plain text beside the name.
+    assert "[%d]" % seed["figure"].id in html
     assert done
 
 
