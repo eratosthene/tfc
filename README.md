@@ -187,6 +187,18 @@ search results tab, it lists the figures the page shows and sends your pick back
 a confirm page. It reads only the page you already have open. *Skip* takes a figure
 with no page there out of the queue (*Show skipped figures* brings it back).
 
+If you also keep a **My Collection** on ActionFigure411, the queue links to a page
+that copies links and averages across in one go. A second bookmarklet, run on the
+My Collection page, reads the rows already there (each figure's page address, its
+recent eBay sold average and your Note) and shows them in a box to copy; you paste
+them into tfc, which shows what it would change and saves only the ticked rows.
+ActionFigure411 lists retail boxes, so a set is one entry there and several figures
+in tfc: put the tfc id of each figure in the box's Note (`199, 200, 201`) and all of
+them get the box's link and average. A row with no Note is matched by its exact
+name. The average is for the whole box and is saved on each figure with the date it
+was copied, so a total over figures must count each distinct link once. Nothing
+keeps these up to date: copy again to refresh.
+
 ### Refreshing a figure from the wiki
 
 The **Edit Figure** page has a panel using the figure's saved *Link to Figure*

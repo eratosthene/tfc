@@ -4,6 +4,7 @@ from markupsafe import Markup, escape
 from sqlalchemy import (
     Boolean,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -463,6 +464,12 @@ class Figure(Legacy, Named, db.Model):
     # Set on the ActionFigure411 queue for a figure that has no page there, so it
     # stops turning up as still to do.
     af411_skipped = Column(Boolean, nullable=False, default=False, server_default="0")
+    # The recent eBay sold average on its My Collection page, and the day it was
+    # copied over (see app/af411collection.py). ActionFigure411 lists retail
+    # boxes, so figures that came in one box share a link and one average for the
+    # whole box: a total must count each distinct link once.
+    af411_average = Column(Numeric(10, 2))
+    af411_average_on = Column(Date)
     # The new structures, filled by scripts/migrate_data_model.py and not read by
     # the views yet. They take their final names (link, character_id and
     # accessories) when the old columns go.
@@ -614,6 +621,14 @@ class Figure(Legacy, Named, db.Model):
         return Markup(" &middot; ").join(
             _link(url, label) for label, url in price_check_links(self)
         )
+
+    def af411_average_show(self):
+        if self.af411_average is None:
+            return Markup("")
+        text = "${:,.2f}".format(self.af411_average)
+        if self.af411_average_on:
+            text += " (copied %s)" % self.af411_average_on.isoformat()
+        return Markup(escape(text))
 
     def franchise_show(self):
         # The tagged franchises, then the ones above them (app/franchises.py).

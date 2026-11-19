@@ -34,6 +34,8 @@
       into the box, or use the bookmarklet there: on the results page it lists the figures it finds and sends your
       pick back here to confirm. Drag this to your bookmarks bar once:
       <a class="btn btn-default btn-xs" href="{{ bookmarklet }}">tfc &rarr; AF411</a></p>
+    <p>Already have figures in My Collection on ActionFigure411?
+      <a href="{{ url_for('Af411ImportView.start') }}">Copy their links and averages from there</a> in one go.</p>
   </div>
   {% endif %}
   <table class="table table-striped table-condensed">

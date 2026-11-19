@@ -97,14 +97,16 @@ def test_a_bad_link_is_refused_and_nothing_is_saved(auth_client, seed, bad, mess
     assert db.session.get(Figure, pk).af411_link is None
 
 
-def test_a_link_another_figure_has_is_saved_with_a_warning(auth_client, seed):
+def test_a_link_another_figure_has_is_saved_and_noted(auth_client, seed):
     _more(seed, "Other", af411_link=PAGE)
     resp = auth_client.post(
         "/af411-queue/%d/save" % seed["figure"].id,
         data={"link": PAGE},
         follow_redirects=True,
     )
-    assert "Another figure already has this link" in resp.get_data(as_text=True)
+    assert "1 other figure already has this link (normal for a set)" in resp.get_data(
+        as_text=True
+    )
     db.session.expire_all()
     assert db.session.get(Figure, seed["figure"].id).af411_link == PAGE
 
