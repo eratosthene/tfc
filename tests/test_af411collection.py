@@ -334,6 +334,7 @@ def test_the_preview_shows_matches_and_checks(auth_client, seed):
         as_text=True
     )
     assert "3 rows read" in html and "(by Note)" in html
+    assert 'id="select-all"' in html
     assert "No figure matched." in html and "More than one figure has this name" in html
     assert "not in this list" in html and "Row 4 is not a figure." in html
     assert str(other) in html and "$156.25" in html and "retail $99.99" in html
@@ -409,3 +410,22 @@ def test_the_figure_page_shows_the_average(auth_client, seed):
     db.session.commit()
     html = auth_client.get("/figuremodelview/show/%d" % pk).get_data(as_text=True)
     assert "$156.25" in html and "(copied" not in html
+
+
+def test_the_preview_ignores_note_rows_whose_figures_already_have_a_link(
+    auth_client, seed
+):
+    pk = seed["figure"].id
+    db.session.get(Figure, pk).af411_link = PRIME
+    db.session.commit()
+    text = _paste(
+        _row(t=str(pk), n="Optimus Prime"),
+        _row(l=BASE + "x-9.php", n="Optimus Prime", t="", a="$10.00"),
+    )
+    html = auth_client.post("/af411-import/preview", data={"data": text}).get_data(
+        as_text=True
+    )
+    assert "1 row read" in html
+    assert "1 row left out because the figures named in its Note already" in " ".join(
+        html.split()
+    )
