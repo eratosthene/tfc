@@ -58,12 +58,28 @@ def test_test_config_is_what_the_app_loaded():
     assert flask_app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] is False
 
 
+_HIDE_CONFIG = """
+import sys
+
+class _NoConfig:
+    def find_spec(self, name, path=None, target=None):
+        if name == "config":
+            raise ModuleNotFoundError("No module named 'config'", name="config")
+
+sys.meta_path.insert(0, _NoConfig())
+"""
+
+
 def _run_app_import(tmp_path, config_source):
     if config_source is not None:
         (tmp_path / "config.py").write_text(textwrap.dedent(config_source))
     env = dict(os.environ, PYTHONPATH=ROOT, PYTHONDONTWRITEBYTECODE="1")
     env.pop("TEST_DATABASE_URI", None)
     code = "import app; print(app.app.config.get('SECRET_KEY'))"
+    if config_source is None:
+        # The repo's own (git-ignored) config.py is on PYTHONPATH on a developer
+        # machine, so hide it rather than count on its absence.
+        code = _HIDE_CONFIG + code
     return subprocess.run(
         [sys.executable, "-c", code],
         cwd=tmp_path,
