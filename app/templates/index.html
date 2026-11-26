@@ -4,7 +4,7 @@
 <div class="container">
   <h1>My Transformers Collection</h1>
   <h2>Total number of figures: {{ num_figures }}</h2>
-{% macro worth_text(w, total) %}{% if w.priced %}{{ "{:,.2f}".format(w.value) }}
+{% macro worth_text(w, total) %}{% if w.priced %}${{ "{:,.2f}".format(w.value) }}
   <small class="text-muted">({{ w.priced }} of {{ total }} priced)</small>{% else %}<span class="text-muted">&ndash;</span>{% endif %}{% endmacro %}
   <h3 id="total-value">Total value: {{ worth_text(worth, num_figures) }}</h3>
 {% macro toggle(has_children) %}{% if has_children %}<button type="button" class="btn btn-xs btn-default tree-toggle" aria-expanded="false" title="Show / hide the ones below">&#9656;</button>{% else %}<span class="tree-toggle-gap"></span>{% endif %}{% endmacro %}

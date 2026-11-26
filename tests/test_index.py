@@ -231,12 +231,12 @@ def test_values_count_quantity_and_only_figures_with_an_average(auth_client, cap
     resp = auth_client.get("/")
     html = " ".join(resp.get_data(as_text=True).split())
     assert captured["worth"] == {"value": Decimal("26.50"), "priced": 2}
-    assert "Total value: 26.50 <small" in html and "(2 of 3 priced)" in html
+    assert "Total value: $26.50 <small" in html and "(2 of 3 priced)" in html
     by_name = {str(r["franchise"]): r["worth"] for r in captured["by_franchise"]}
     # Two is in both franchises, so the rows add up to more than the total.
     assert by_name["G1"] == {"value": Decimal("26.50"), "priced": 2}
     assert by_name["Beast Wars"] == {"value": Decimal("16.50"), "priced": 1}
-    assert "16.50 <small" in html and "(1 of 2 priced)" in html
+    assert "$16.50 <small" in html and "(1 of 2 priced)" in html
 
 
 def test_the_total_with_no_averages_is_a_dash(auth_client, captured):
@@ -265,7 +265,7 @@ def test_a_box_average_is_counted_once_for_the_figures_in_it(auth_client, captur
     by_name = {str(r["franchise"]): r["worth"] for r in captured["by_franchise"]}
     assert by_name["G1"] == {"value": Decimal("200.00"), "priced": 2}
     assert by_name["Beast Wars"] == {"value": Decimal("207.00"), "priced": 2}
-    assert "207.00 <small" in " ".join(resp.get_data(as_text=True).split())
+    assert "$207.00 <small" in " ".join(resp.get_data(as_text=True).split())
 
 
 def test_a_figure_with_an_average_but_no_link_is_a_box_of_its_own():
