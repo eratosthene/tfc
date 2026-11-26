@@ -1,4 +1,5 @@
 from collections import defaultdict
+from decimal import Decimal
 
 from flask_appbuilder import IndexView
 from flask_appbuilder.views import expose
@@ -20,6 +21,42 @@ from app.models import (
 )
 
 
+def _prices():
+    """{figure id: (link, average, copies)} for figures with an ActionFigure411 average.
+
+    The average is for the whole retail box, per copy. A figure with no
+    quantity counts as one copy (as "Figures owned" does on the Characters list).
+    """
+    return {
+        figure_id: (link, average, quantity or 1)
+        for figure_id, link, average, quantity in db.session.execute(
+            select(
+                Figure.id, Figure.af411_link, Figure.af411_average, Figure.quantity
+            ).where(Figure.af411_average.is_not(None))
+        )
+    }
+
+
+def _worth(figure_ids, prices):
+    """The value of some figures, and how many of them have an average.
+
+    The average is for the whole retail box, so the figures sharing a box (the
+    same link) are worth it once between them, times the most copies of any of
+    them.
+    """
+    priced, boxes = 0, {}
+    for figure_id in figure_ids:
+        if figure_id not in prices:
+            continue
+        priced += 1
+        link, average, copies = prices[figure_id]
+        # No link on a figure is a box of its own.
+        box = boxes.setdefault(link or ("figure", figure_id), [average, 0])
+        box[1] = max(box[1], copies)
+    value = sum((average * copies for average, copies in boxes.values()), Decimal(0))
+    return {"value": value, "priced": priced}
+
+
 def _by_assoc(model, table, key, order_by):
     # The association table's column that points at ``model``.
     right = [c for c in table.c if c.name != "figure_id" and c.name != "position"][0]
@@ -38,7 +75,10 @@ def _by_franchise():
 
     A franchise's total counts the figures tagged with it or anything below it.
     A franchise with none (so nothing below it has any either) is left out.
+    Each also has the ``worth`` of those figures. A figure tagged with several
+    franchises is in each of their totals, so these overlap.
     """
+    prices = _prices()
     parents = parent_map()
     tagged = defaultdict(set)
     for figure_id, franchise_id in db.session.execute(
@@ -54,6 +94,7 @@ def _by_franchise():
         nodes[franchise.id] = {
             "franchise": franchise,
             "total": len(figures),
+            "worth": _worth(figures, prices),
             "children": [],
         }
     roots = []
@@ -109,6 +150,8 @@ class MyIndexView(IndexView):
     def index(self):
         self.update_redirect()
         num_figures = db.session.query(func.count(Figure.id)).scalar()
+        # Worked out over all the figures, not added up from the franchises.
+        worth = _worth(set(db.session.scalars(select(Figure.id))), _prices())
         by_franchise = _by_franchise()
         by_continuity = _by_continuity()
         by_faction = [
@@ -125,6 +168,7 @@ class MyIndexView(IndexView):
             self.index_template,
             appbuilder=self.appbuilder,
             num_figures=num_figures,
+            worth=worth,
             by_franchise=by_franchise,
             by_continuity=by_continuity,
             by_faction=by_faction,

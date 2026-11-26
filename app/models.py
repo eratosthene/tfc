@@ -457,7 +457,6 @@ class Figure(Legacy, Named, db.Model):
     quantity = Column(Integer, default=1)
     # What the user hopes to get, or got, for it. Filled in by hand after looking
     # at the sold listings that price_check_show links to; nothing updates it.
-    sell_price = Column(Numeric(10, 2))
     # The figure's own page on actionfigure411.com, pasted in once it is found
     # (see price_check_show); it shows the eBay averages.
     af411_link = Column(String(500))
