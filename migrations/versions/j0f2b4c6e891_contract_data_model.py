@@ -23,8 +23,8 @@ backup.
 
 See docs/proposals/data-model.md, section 4.
 
-Revision ID: f6b8d0e2a457
-Revises: e5a7c9d1f346
+Revision ID: j0f2b4c6e891
+Revises: i9e1a3b5d780
 Create Date: 2026-11-15 10:00:00.000000
 
 """
@@ -34,8 +34,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = "f6b8d0e2a457"
-down_revision = "e5a7c9d1f346"
+revision = "j0f2b4c6e891"
+down_revision = "i9e1a3b5d780"
 branch_labels = None
 depends_on = None
 

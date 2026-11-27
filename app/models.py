@@ -2,10 +2,13 @@ from flask import url_for
 from flask_appbuilder.models.mixins import ImageColumn
 from markupsafe import Markup, escape
 from sqlalchemy import (
+    Boolean,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Table,
     Text,
@@ -13,7 +16,7 @@ from sqlalchemy import (
     func,
     select,
 )
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy.orm import column_property, relationship, validates
 
 from app import db
 
@@ -348,6 +351,18 @@ class Figure(Legacy, Named, db.Model):
     takara_id = Column(String(255))
     condition = Column(String(255))
     quantity = Column(Integer, default=1)
+    # The figure's own page on actionfigure411.com, pasted in once it is found
+    # (see price_check_show); it shows the eBay averages.
+    af411_link = Column(String(500))
+    # Set on the ActionFigure411 queue for a figure that has no page there, so it
+    # stops turning up as still to do.
+    af411_skipped = Column(Boolean, nullable=False, default=False, server_default="0")
+    # The recent eBay sold average on its My Collection page, and the day it was
+    # copied over (see app/af411collection.py). ActionFigure411 lists retail
+    # boxes, so figures that came in one box share a link and one average for the
+    # whole box: a total must count each distinct link once.
+    af411_average = Column(Numeric(10, 2))
+    af411_average_on = Column(Date)
     # The exact wiki page and fragment this figure is on.
     link = Column(String(500))
     accessories = Column(Text)
@@ -477,6 +492,21 @@ class Figure(Legacy, Named, db.Model):
             continuity.family,
         )
 
+    def price_check_show(self):
+        from app.pricecheck import price_check_links
+
+        return Markup(" &middot; ").join(
+            _link(url, label) for label, url in price_check_links(self)
+        )
+
+    def af411_average_show(self):
+        if self.af411_average is None:
+            return Markup("")
+        text = "${:,.2f}".format(self.af411_average)
+        if self.af411_average_on:
+            text += " (copied %s)" % self.af411_average_on.isoformat()
+        return Markup(escape(text))
+
     def franchise_show(self):
         # The tagged franchises, then the ones above them (app/franchises.py).
         from app.franchises import effective_franchises
@@ -518,6 +548,21 @@ class Figure(Legacy, Named, db.Model):
 
     def packed_with_show(self):
         return self._references_show("packed_with", False)
+
+
+# How many figures a character has: the quantities added up, one for a figure
+# with none given. Read by the Characters list, to sort and to filter on.
+Character.figure_count = column_property(
+    select(
+        func.cast(
+            func.coalesce(func.sum(func.coalesce(Figure.quantity, 1)), 0), Integer
+        )
+    )
+    .where(Figure.character_id == Character.id)
+    .correlate_except(Figure)
+    .scalar_subquery(),
+    deferred=False,
+)
 
 
 class FigureReference(db.Model):

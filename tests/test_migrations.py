@@ -21,7 +21,7 @@ def _is_ours(obj, name, type_, reflected, compare_to):
     return not (type_ == "table" and name.startswith("ab_"))
 
 
-PRE_CONTRACT = "e5a7c9d1f346"  # the last revision before the contract
+PRE_CONTRACT = "i9e1a3b5d780"  # the last revision before the contract
 
 
 def _empty_database():

@@ -10,11 +10,14 @@ from flask import (
 )
 from flask_appbuilder import ModelView, expose, has_access, permission_name
 from flask_appbuilder.filemanager import thumbgen_filename
+from flask_appbuilder.models.filters import BaseFilter
 from sqlalchemy import select
 from wtforms import TextAreaField, widgets
 from app import app, appbuilder, db
 from app import continuities  # noqa: F401 (registers flask set-continuity-names)
 from app.addfigure import AddFromTFWikiView, CsrfOnly
+from app.af411collection import Af411ImportView
+from app.af411queue import Af411QueueView
 from app.refresh import RefreshFigureView
 from app import modernise  # noqa: F401 (registers flask modernise-links)
 from app.franchises import FigureInterface, NameSortedInterface, check_parent
@@ -29,6 +32,7 @@ from app.models import (
     Tooling,
     Category,
 )
+from app.pricecheck import check_af411_link
 from app.references import format_references, parse_references
 
 
@@ -167,11 +171,36 @@ class CategoryModelView(ModelView):
 class CharacterModelView(ModelView):
     datamodel = NameSortedInterface(Character)
     base_order = ("name", "asc")
-    label_columns = {"link_show": "Link", "figure_list": "Figures"}
-    list_columns = ["name", "continuity", "link_show", "figure_list"]
+    label_columns = {
+        "link_show": "Link",
+        "figure_list": "Figures",
+        "figure_count": "Figures owned",
+    }
+    list_columns = ["name", "continuity", "figure_count", "link_show", "figure_list"]
     show_columns = ["name", "continuity", "link_show"]
     add_columns = edit_columns = ["name", "link", "continuity"]
     search_columns = ["name", "link", "continuity"]
+
+
+class SeveralFiguresFilter(BaseFilter):
+    """Keeps the characters that have more than one figure (quantities added up)."""
+
+    name = "Has several figures"
+    arg_name = "several_figures"
+
+    def apply(self, query, value):
+        return query.filter(Character.figure_count > 1)
+
+
+class MultipleFigureCharacterView(CharacterModelView):
+    """The Characters list, cut down to those with more than one figure, most
+    first: the ones to look at when deciding what to sell."""
+
+    route_base = "/characters-with-several-figures"
+    base_filters = [["id", SeveralFiguresFilter, None]]
+    base_order = ("figure_count", "desc")
+    # The filter lives in base_filters, so there is nothing to add or change here.
+    base_permissions = ["can_list", "can_show"]
 
 
 class ContinuityModelView(ModelView):
@@ -264,6 +293,14 @@ class FigureModelView(ModelView):
         "ancestors": "Has ancestor (link)",
         "continuity": "Continuity",
         "family": "Continuity family",
+        "price_check_show": "Price check",
+        "af411_link": "ActionFigure411 link",
+        "af411_average_show": "ActionFigure411 average (whole box)",
+        "af411_average": "WB Avg",
+    }
+    # The ActionFigure411 whole-box average, kept sortable by showing the real column.
+    formatters_columns = {
+        "af411_average": lambda value: "" if value is None else "${:,.2f}".format(value)
     }
     list_columns = [
         "name",
@@ -271,6 +308,7 @@ class FigureModelView(ModelView):
         "franchise",
         "categories",
         "release_year",
+        "af411_average",
         "image_thumb_show",
     ]
     show_columns = [
@@ -294,6 +332,8 @@ class FigureModelView(ModelView):
         "categories",
         "condition",
         "quantity",
+        "af411_average_show",
+        "price_check_show",
     ]
     # Pinned: the form shows the new structures. The old ones (figure_link,
     # character, history, packed_with, accessories) stay in the database, unused,
@@ -315,6 +355,7 @@ class FigureModelView(ModelView):
         "gestalt_of",
         "condition",
         "quantity",
+        "af411_link",
         "legacy_id",
     ]
     # The two text boxes are form-only fields, so they are named here as well.
@@ -347,6 +388,7 @@ class FigureModelView(ModelView):
     def _check(self, item):
         """Read the form's extra fields onto the item, or refuse with a message."""
         try:
+            item.af411_link = check_af411_link(item.af411_link)
             references = []
             for kind, field in REFERENCE_FIELDS:
                 for position, (name, link) in enumerate(
@@ -400,8 +442,15 @@ class FigureModelView(ModelView):
 
 appbuilder.add_view(FigureModelView, "Figures")
 appbuilder.add_view(AddFromTFWikiView, "Add from TFWiki")
+appbuilder.add_view(Af411QueueView, "ActionFigure411 links")
 appbuilder.add_view_no_menu(RefreshFigureView)
+appbuilder.add_view_no_menu(Af411ImportView)
 appbuilder.add_view(CharacterModelView, "Characters", category="Characters")
+appbuilder.add_view(
+    MultipleFigureCharacterView,
+    "Characters with several figures",
+    category="Characters",
+)
 appbuilder.add_view(ContinuityModelView, "Continuities", category="Characters")
 appbuilder.add_view(
     ContinuityFamilyModelView, "Continuity Families", category="Characters"

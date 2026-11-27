@@ -1,0 +1,69 @@
+{% extends "appbuilder/base.html" %}
+{% macro csrf() %}{{ csrf_form.hidden_tag() }}{% endmacro %}
+{% block content %}
+<div class="container">
+  <h1>Copy links and averages from ActionFigure411</h1>
+{% if problems %}
+  <div class="alert alert-danger"><ul>{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
+{% endif %}
+{% if step == "paste" %}
+  <ol>
+    <li>Drag this to your bookmarks bar once: <a class="btn btn-default btn-xs" href="{{ bookmarklet }}">tfc: read My Collection</a></li>
+    <li>Open your <strong>My Collection</strong> page on ActionFigure411 and click the bookmark. It reads the rows on the
+      page, shows them in a box, and copies them when the browser allows. Nothing is sent anywhere.</li>
+    <li>Paste them here. You see what would change before anything is saved.</li>
+  </ol>
+  <p class="help-block">ActionFigure411 lists retail boxes, so a set is one entry there and several figures here.
+    Put the tfc id of each figure in the box's <em>Note</em> (<code>199, 200, 201</code>) and they match exactly, all
+    getting the box's link and average; without a Note a row is matched by its exact name.</p>
+  <form method="post" action="{{ url_for('Af411ImportView.preview') }}">
+    {{ csrf() }}
+    <textarea name="data" rows="8" class="form-control" placeholder="Paste here">{{ text }}</textarea>
+    <p><button type="submit" class="btn btn-primary" style="margin-top:8px">Show what would change</button>
+      <a class="btn btn-default" style="margin-top:8px" href="{{ url_for('Af411QueueView.queue') }}">Back to the queue</a></p>
+  </form>
+{% else %}
+  <p>{{ entries|length }} row{{ "s" if entries|length != 1 }} read. Ticked rows are saved when you press the button:
+    the ActionFigure411 link and its average (with today's date) go onto each tfc figure whose id is in the box.
+    Fix the ids, or clear them, to change or leave out a row.</p>
+  {% if skipped %}<p class="text-info">{{ skipped }} row{{ "s" if skipped != 1 }} left out because the figures named in
+    {{ "its" if skipped == 1 else "their" }} Note already have a link here.</p>{% endif %}
+  <form method="post" action="{{ url_for('Af411ImportView.apply') }}">
+    {{ csrf() }}
+    <input type="hidden" name="count" value="{{ entries|length }}"/>
+    <table class="table table-striped table-condensed">
+      <thead><tr><th><label style="font-weight:normal"><input type="checkbox" id="select-all" title="Select all" onchange="document.querySelectorAll('input[name^=use]').forEach(function(c){c.checked=this.checked}.bind(this))"/> Save</label></th><th>On ActionFigure411</th><th>tfc figure id</th><th>Average</th><th>Check</th></tr></thead>
+      <tbody>
+      {% for e in entries %}
+        {% set r = e.row %}
+        <tr>
+          <td><input type="checkbox" name="use{{ loop.index0 }}" value="1" {{ "checked" if e.checked }}/></td>
+          <td><a href="{{ r.link }}" target="_blank" rel="noopener">{{ r.name }}</a><br/>
+            <small class="text-muted">{{ r.group }}{% if r.quantity and r.quantity != "1" %} &middot; x{{ r.quantity }}{% endif %}</small>
+            <input type="hidden" name="name{{ loop.index0 }}" value="{{ r.name }}"/>
+            <input type="hidden" name="link{{ loop.index0 }}" value="{{ r.link }}"/>
+            <input type="hidden" name="average{{ loop.index0 }}" value="{{ r.average if r.average is not none else '' }}"/></td>
+          <td><input type="text" name="figure{{ loop.index0 }}" value="{{ e.figure_ids|join(', ') }}" class="form-control input-sm" style="width:9em"/>
+            {% if e.figure_ids %}<small>{% for fid, fname in e.figure_names %}{{ fname }}{{ ", " if not loop.last }}{% endfor %}
+              <span class="text-muted">(by {{ e.basis }})</span></small>
+            {% elif e.candidate_names %}<small>More than one figure has this name:
+              {% for cid, cname in e.candidate_names %}<a href="{{ url_for('FigureModelView.show', pk=cid) }}">{{ cid }}</a>{{ ", " if not loop.last }}{% endfor %}</small>
+            {% else %}<small class="text-muted">No figure matched.</small>{% endif %}</td>
+          <td>{% if r.average is not none %}${{ "{:,.2f}".format(r.average) }}{% endif %}
+            {% if r.retail is not none %}<br/><small class="text-muted">retail ${{ "{:,.2f}".format(r.retail) }}</small>{% endif %}</td>
+          <td>{% for w in e.warnings %}<div class="text-danger"><small>{{ w }}</small></div>{% endfor %}
+            {% for n in e.notes %}<div class="text-muted"><small>{{ n }}</small></div>{% endfor %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit" class="btn btn-primary">Save the ticked rows</button>
+    <a class="btn btn-default" href="{{ url_for('Af411ImportView.start') }}">Start again</a>
+  </form>
+  {% if missing %}
+  <h4>{{ missing|length }} tfc figure{{ "s" if missing|length != 1 }} not in this list</h4>
+  <p class="text-muted">{% for fid, name in missing[:60] %}<a href="{{ url_for('FigureModelView.show', pk=fid) }}">{{ name }}</a>{{ ", " if not loop.last }}{% endfor %}{% if missing|length > 60 %} &hellip;{% endif %}</p>
+  {% endif %}
+{% endif %}
+</div>
+{% endblock %}
