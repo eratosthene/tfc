@@ -230,19 +230,19 @@ def test_values_count_quantity_and_only_figures_with_an_average(auth_client, cap
     db.session.commit()
     resp = auth_client.get("/")
     html = " ".join(resp.get_data(as_text=True).split())
-    assert captured["worth"] == {"value": Decimal("26.50"), "priced": 2}
+    assert captured["worth"] == {"value": Decimal("26.50"), "priced": 2, "of": 3}
     assert "Total value: $26.50 <small" in html and "(2 of 3 priced)" in html
     by_name = {str(r["franchise"]): r["worth"] for r in captured["by_franchise"]}
     # Two is in both franchises, so the rows add up to more than the total.
-    assert by_name["G1"] == {"value": Decimal("26.50"), "priced": 2}
-    assert by_name["Beast Wars"] == {"value": Decimal("16.50"), "priced": 1}
+    assert by_name["G1"] == {"value": Decimal("26.50"), "priced": 2, "of": 2}
+    assert by_name["Beast Wars"] == {"value": Decimal("16.50"), "priced": 1, "of": 2}
     assert "$16.50 <small" in html and "(1 of 2 priced)" in html
 
 
 def test_the_total_with_no_averages_is_a_dash(auth_client, captured):
     _add_known_data()
     html = auth_client.get("/").get_data(as_text=True)
-    assert captured["worth"] == {"value": 0, "priced": 0}
+    assert captured["worth"] == {"value": 0, "priced": 0, "of": 3}
     assert "Total value:" in html and "(0 of" not in html
 
 
@@ -261,13 +261,40 @@ def test_a_box_average_is_counted_once_for_the_figures_in_it(auth_client, captur
     db.session.commit()
     resp = auth_client.get("/")
     # The box once, for the most copies in it (2), plus Three.
-    assert captured["worth"] == {"value": Decimal("207.00"), "priced": 3}
+    assert captured["worth"] == {"value": Decimal("207.00"), "priced": 3, "of": 3}
     by_name = {str(r["franchise"]): r["worth"] for r in captured["by_franchise"]}
-    assert by_name["G1"] == {"value": Decimal("200.00"), "priced": 2}
-    assert by_name["Beast Wars"] == {"value": Decimal("207.00"), "priced": 2}
+    assert by_name["G1"] == {"value": Decimal("200.00"), "priced": 2, "of": 2}
+    assert by_name["Beast Wars"] == {"value": Decimal("207.00"), "priced": 2, "of": 2}
     assert "$207.00 <small" in " ".join(resp.get_data(as_text=True).split())
 
 
 def test_a_figure_with_an_average_but_no_link_is_a_box_of_its_own():
     prices = {1: (None, Decimal("10"), 1), 2: (None, Decimal("10"), 1)}
-    assert _worth({1, 2}, prices) == {"value": Decimal("20"), "priced": 2}
+    assert _worth({1, 2}, prices, set()) == {
+        "value": Decimal("20"),
+        "priced": 2,
+        "of": 2,
+    }
+
+
+def test_gestalts_without_an_average_are_left_out_of_the_priced_count(
+    auth_client, captured
+):
+    _add_known_data()
+    one, two, three = (
+        db.session.query(Figure).filter_by(name=n).one()
+        for n in ("One", "Two", "Three")
+    )
+    # Two is a combiner made of One and Three; AF4 has no box for it.
+    two.gestalt_of = [one, three]
+    one.af411_average = Decimal("10.00")
+    db.session.commit()
+    resp = auth_client.get("/")
+    html = " ".join(resp.get_data(as_text=True).split())
+    assert captured["worth"] == {"value": Decimal("10.00"), "priced": 1, "of": 2}
+    assert "(1 of 2 priced)" in html
+    # The same gestalt sold in the same box as its parts has an average, and counts.
+    two.af411_average = Decimal("30.00")
+    db.session.commit()
+    auth_client.get("/")
+    assert captured["worth"] == {"value": Decimal("40.00"), "priced": 2, "of": 3}
