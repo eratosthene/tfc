@@ -8,6 +8,7 @@ from PIL import Image
 from app import app as flask_app, db
 from app.models import (
     Category,
+    Character,
     Faction,
     Figure,
     FigureReference,
@@ -50,7 +51,7 @@ def test_gestalt_of_and_references(seed):
     other = Figure(
         name="Gestalt",
         release_year=1985,
-        character_new=fig.character_new,
+        character=fig.character,
         faction=fig.faction,
         gestalt_of=[fig],
         references=[
@@ -135,13 +136,13 @@ def test_add_edit_delete_figure(auth_client, seed):
     data = {
         "name": "Megatron",
         "release_year": "1984",
-        "character_new": str(seed["character"].id),
+        "character": str(seed["character"].id),
         "faction": str(seed["faction"].id),
         "franchise": [str(seed["franchise"].id)],
         "tooling": [str(seed["tooling"].id)],
         "quantity": "2",
         "link": "https://tfwiki.net/wiki/Megatron_(G1)#Generation_1",
-        "accessories_text": "Fusion cannon, Stand",
+        "accessories": "Fusion cannon, Stand",
         "history_text": "Diaclone Megatron | https://tfwiki.net/wiki/Diaclone_Megatron\n",
         "packed_with_text": "",
     }
@@ -149,7 +150,7 @@ def test_add_edit_delete_figure(auth_client, seed):
     assert resp.status_code == 200
     fig = db.session.query(Figure).filter_by(name="Megatron").one()
     assert fig.quantity == 2 and fig.faction.name == "Autobot"
-    assert fig.accessories_text == "Fusion cannon, Stand"
+    assert fig.accessories == "Fusion cannon, Stand"
     assert [(r.kind, r.name) for r in fig.references] == [
         ("ancestor", "Diaclone Megatron")
     ]
@@ -181,7 +182,7 @@ def figure_form(seed, **changes):
     data = {
         "name": "Form figure",
         "release_year": "2020",
-        "character_new": str(seed["character"].id),
+        "character": str(seed["character"].id),
         "faction": str(seed["faction"].id),
         "quantity": "1",
     }
@@ -197,8 +198,8 @@ def post_figure(auth_client, data, path="/figuremodelview/add"):
 
 def test_a_figure_needs_a_character(auth_client, seed):
     data = figure_form(seed)
-    del data["character_new"]
-    assert "Pick a character." in post_figure(auth_client, data)
+    del data["character"]
+    assert "This field is required" in post_figure(auth_client, data)
     assert db.session.query(Figure).filter_by(name="Form figure").count() == 0
 
 
@@ -282,7 +283,7 @@ def test_filters_by_character_continuity_family_and_ancestor(auth_client, seed):
             name="Elsewhere",
             release_year=2000,
             faction=other.faction,
-            character_new=None,
+            character=Character(name="Elsewhere", link="https://tfwiki.net/wiki/E"),
         )
     )
     db.session.commit()
@@ -297,16 +298,14 @@ def test_filters_by_character_continuity_family_and_ancestor(auth_client, seed):
             in html
         }
 
-    assert names("_flt_0_character_new=%s" % seed["character"].id) == {"Optimus Prime"}
+    assert names("_flt_0_character=%s" % seed["character"].id) == {"Optimus Prime"}
     assert names("_flt_0_continuity=%s" % seed["continuity"].id) == {"Optimus Prime"}
     assert names("_flt_0_family=%s" % seed["family"].id) == {"Optimus Prime"}
     assert names("_flt_0_ancestors=https://tfwiki.net/wiki/Diaclone_Convoy") == {
         "Optimus Prime"
     }
     assert names("_flt_0_ancestors=https://tfwiki.net/wiki/Nobody") == set()
-    assert names(
-        "_flt_2_accessories_text=Axe"
-    )  # index 2 is "contains" == {"Optimus Prime"}
+    assert names("_flt_2_accessories=Axe")  # index 2 is "contains" == {"Optimus Prime"}
 
 
 def test_the_figure_page_marks_figures_in_the_collection(auth_client, seed):
@@ -315,6 +314,7 @@ def test_the_figure_page_marks_figures_in_the_collection(auth_client, seed):
             name="The Ancestor",
             release_year=1983,
             faction=db.session.query(Faction).one(),
+            character_id=seed["character"].id,
             link="https://tfwiki.net/wiki/Diaclone_Convoy",
         )
     )
@@ -330,18 +330,18 @@ def test_the_figure_page_marks_figures_in_the_collection(auth_client, seed):
 
 
 def test_empty_link_and_accessories_are_saved_as_none(auth_client, seed):
-    post_figure(auth_client, figure_form(seed, link="  ", accessories_text=" "))
+    post_figure(auth_client, figure_form(seed, link="  ", accessories=" "))
     fig = db.session.query(Figure).filter_by(name="Form figure").one()
-    assert fig.link is None and fig.accessories_text is None
+    assert fig.link is None and fig.accessories is None
     path = "/figuremodelview/edit/%s" % fig.id
     post_figure(
         auth_client,
-        figure_form(seed, link=" https://x/y ", accessories_text=" A, B "),
+        figure_form(seed, link=" https://x/y ", accessories=" A, B "),
         path,
     )
     db.session.expire_all()
     fig = db.session.get(Figure, fig.id)
-    assert fig.link == "https://x/y" and fig.accessories_text == "A, B"
+    assert fig.link == "https://x/y" and fig.accessories == "A, B"
 
 
 def test_two_figures_can_be_added_with_a_blank_legacy_id(auth_client, seed):

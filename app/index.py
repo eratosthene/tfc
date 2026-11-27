@@ -126,7 +126,7 @@ def _by_continuity():
     by_continuity = defaultdict(set)
     for figure_id, continuity_id in db.session.execute(
         select(Figure.id, Character.continuity_id).join(
-            Character, Figure.character_id_new == Character.id
+            Character, Figure.character_id == Character.id
         )
     ):
         by_continuity[continuity_id].add(figure_id)

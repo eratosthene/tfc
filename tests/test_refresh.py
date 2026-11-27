@@ -84,10 +84,10 @@ def test_the_diff_lists_only_what_differs(auth_client, cached, seed):
 def test_accept_is_only_pre_selected_where_the_figure_has_nothing_and_never_for_a_picture(
     auth_client, cached, seed
 ):
-    pk = figure_for(seed, accessories_text=None, name="Keep me")
+    pk = figure_for(seed, accessories=None, name="Keep me")
     html = compare(auth_client, pk)
     assert choice(html, "name") == "skip"  # the figure has a name
-    assert choice(html, "accessories_text") == "accept"  # it has none
+    assert choice(html, "accessories") == "accept"  # it has none
     assert choice(html, "picture") == "skip"
     assert choice(html, "history") == "skip"  # it has an ancestor already
 
@@ -208,7 +208,7 @@ def test_only_the_accepted_changes_are_saved(auth_client, cached, seed):
         choice_name="accept",
         choice_release_year="accept",
         choice_history="accept",
-        choice_accessories_text="skip",
+        choice_accessories="skip",
         choice_packed_with="skip",
     )
     assert (
@@ -217,7 +217,7 @@ def test_only_the_accepted_changes_are_saved(auth_client, cached, seed):
     )
     figure = refetch(pk)
     assert figure.name == "A Hero is Born" and figure.release_year == 2022
-    assert figure.accessories_text == "Blaster, Axe"  # skipped
+    assert figure.accessories == "Blaster, Axe"  # skipped
     ancestors = [
         (r.position, r.name) for r in figure.references if r.kind == "ancestor"
     ]
@@ -246,7 +246,7 @@ def test_every_kind_of_change_can_be_applied(auth_client, cached, seed):
         "franchise",
         "tooling",
         "categories",
-        "accessories_text",
+        "accessories",
         "history",
         "packed_with",
     )
@@ -261,7 +261,7 @@ def test_every_kind_of_change_can_be_applied(auth_client, cached, seed):
     assert "Retool" in [t.name for t in figure.tooling] and "2-pack" in [
         c.name for c in figure.categories
     ]
-    assert figure.accessories_text.startswith("Rifle, Vector Sigma")
+    assert figure.accessories.startswith("Rifle, Vector Sigma")
     assert sorted(r.name for r in figure.references) == [
         "Diaclone Convoy",
         "Orion Pax",
@@ -486,7 +486,7 @@ def test_pack_names_and_capital_letters_do_not_make_noise(auth_client, cached, s
     pk = figure_for(
         seed,
         name="Orion Pax",
-        accessories_text="rifle, vector sigma, key to vector sigma, STAND",
+        accessories="rifle, vector sigma, key to vector sigma, STAND",
     )
     # The wiki's name for the figure is "A Hero is Born" (a pack name), which does not
     # contain "Orion Pax", so the rename is still proposed; the accessories differ

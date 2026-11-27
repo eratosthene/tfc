@@ -212,7 +212,7 @@ def test_one_candidate_goes_straight_to_the_review(auth_client, cached, seed):
         "Orion Pax | " + WIKI + "Optimus_Prime_(G1)/Generations_toys#Legacy"
         in values["packed_with_text"]
     )
-    assert values["accessories_text"].startswith("Rifle, Vector Sigma")
+    assert values["accessories"].startswith("Rifle, Vector Sigma")
     assert "the link was updated to that page" in html  # it moved to Alpha_Trion/toys
     assert "from Bp-a1" in html and "guessed from:" in html  # sources are shown
     assert "Legacy-toy_AlphaTrion.jpg" in html  # the raw block and the picture
@@ -376,10 +376,10 @@ def test_saving_creates_the_figure_and_what_is_new(auth_client, cached, seed):
     fig = db.session.query(Figure).filter_by(name="Alpha Trion").one()
     assert fig.link == WIKI + "Alpha_Trion/toys#Legacy" and fig.release_year == 2022
     assert (
-        fig.character_new.name == "Alpha Trion"
-        and fig.character_new.link == WIKI + "Alpha_Trion"
+        fig.character.name == "Alpha Trion"
+        and fig.character.link == WIKI + "Alpha_Trion"
     )
-    assert fig.character_new.continuity.name == "G1"
+    assert fig.character.continuity.name == "G1"
     assert [(r.kind, r.name) for r in fig.references] == [("ancestor", "Scourge")]
     assert db.session.query(Continuity).filter_by(name="G1").count() == 1
 
@@ -435,7 +435,7 @@ def test_an_existing_character_can_be_chosen(auth_client, cached, seed):
     )
     assert resp.status_code == 302
     assert (
-        db.session.query(Figure).filter_by(name="Alpha Trion").one().character_new.id
+        db.session.query(Figure).filter_by(name="Alpha Trion").one().character.id
         == char.id
     )
 
@@ -449,7 +449,7 @@ def test_the_chosen_franchise_tooling_and_categories_are_saved(
         franchise=[str(seed["franchise"].id)],
         tooling=[str(seed["tooling"].id)],
         categories=[str(seed["category"].id)],
-        accessories_text="Rifle, Stand",
+        accessories="Rifle, Stand",
         hasbro_id="F1234",
         takara_id="T9",
         exclusive_to="Shop",
@@ -462,7 +462,7 @@ def test_the_chosen_franchise_tooling_and_categories_are_saved(
     assert [t.name for t in fig.tooling] == ["Prime tooling"]
     assert [c.name for c in fig.categories] == ["Leader"]
     assert (
-        fig.accessories_text,
+        fig.accessories,
         fig.hasbro_id,
         fig.takara_id,
         fig.exclusive_to,
@@ -567,11 +567,11 @@ def test_a_bad_form_keeps_what_was_typed(auth_client, cached, seed):
         seed,
         name="Typed name",
         release_year="nope",
-        accessories_text="A, B",
+        accessories="A, B",
     ).get_data(as_text=True)
     values = page_values(html)
     assert values["name"] == "Typed name" and values["release_year"] == "nope"
-    assert "A, B" in values["accessories_text"]
+    assert "A, B" in values["accessories"]
 
 
 def test_the_figure_made_here_opens_on_its_page(auth_client, cached, seed):

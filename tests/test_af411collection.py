@@ -49,7 +49,7 @@ def _figure(seed, name, **kw):
     fig = Figure(
         name=name,
         release_year=2004,
-        character_new=first.character_new,
+        character=first.character,
         faction=first.faction,
         **kw,
     )

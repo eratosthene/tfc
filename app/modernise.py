@@ -335,8 +335,8 @@ def modernise_characters(fetch, limit, delay, apply_, json_path):
     }
     figure_links = defaultdict(list)
     for cid, link in db.session.execute(
-        select(Figure.character_id_new, Figure.link).where(
-            Figure.character_id_new.isnot(None), Figure.link.isnot(None)
+        select(Figure.character_id, Figure.link).where(
+            Figure.character_id.isnot(None), Figure.link.isnot(None)
         )
     ):
         figure_links[cid].append(link)

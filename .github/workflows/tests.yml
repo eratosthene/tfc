@@ -32,12 +32,6 @@ jobs:
           --health-interval=5s
           --health-timeout=5s
           --health-retries=20
-      # For tests/test_migrate_mongo.py, which runs the one-time migration
-      # script against a real MongoDB with GridFS.
-      mongo:
-        image: mongo:4.4
-        ports:
-          - 27017:27017
     steps:
       - uses: actions/checkout@v7
 
@@ -48,13 +42,12 @@ jobs:
           cache-dependency-path: Pipfile.lock
 
       # Pipfile.lock is the source of truth: export it, dev packages included,
-      # and install exactly that. pymongo is only for the migration script's
-      # tests, not the app, so it is not in the lock.
+      # and install exactly that.
       - name: Install dependencies
         run: |
           python -m pip install pipenv
           pipenv requirements --dev > locked-requirements.txt
-          python -m pip install -r locked-requirements.txt pymongo==4.6.3
+          python -m pip install -r locked-requirements.txt
 
       # --cov-fail-under is the coverage floor: app/ is at 100% line coverage, so
       # any new code needs tests. Lower it only on purpose.
@@ -68,5 +61,4 @@ jobs:
           --cov=app --cov-report=term-missing --cov-fail-under=100
         env:
           PYTHONUNBUFFERED: "1"
-          TEST_MONGO_URI: mongodb://127.0.0.1:27017
           TEST_DATABASE_URI: mysql+pymysql://tfc:tfc-password@127.0.0.1:3306/tfc_test?charset=utf8mb4

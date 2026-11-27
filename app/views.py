@@ -282,14 +282,14 @@ class FigureModelView(ModelView):
         "character_show": "Character",
         "continuity_show": "Continuity",
         "family_show": "Continuity Family",
-        "character_new": "Character",
+        "character": "Character",
         "franchise_show": "Franchise(s)",
         "faction_show": "Faction",
         "figure_link_show": "Link to Figure",
         "link": "Link to Figure",
         "history_show": "Model History",
         "packed_with_show": "Packed With",
-        "accessories_text": "Accessories",
+        "accessories": "Accessories",
         "ancestors": "Has ancestor (link)",
         "continuity": "Continuity",
         "family": "Continuity family",
@@ -328,7 +328,7 @@ class FigureModelView(ModelView):
         "hasbro_id",
         "takara_id",
         "gestalt_of",
-        "accessories_text",
+        "accessories",
         "categories",
         "condition",
         "quantity",
@@ -340,7 +340,7 @@ class FigureModelView(ModelView):
     # until the contract PR removes them.
     _columns = [
         "name",
-        "character_new",
+        "character",
         "faction",
         "franchise",
         "tooling",
@@ -350,7 +350,7 @@ class FigureModelView(ModelView):
         "exclusive_to",
         "hasbro_id",
         "takara_id",
-        "accessories_text",
+        "accessories",
         "categories",
         "gestalt_of",
         "condition",
@@ -388,8 +388,6 @@ class FigureModelView(ModelView):
     def _check(self, item):
         """Read the form's extra fields onto the item, or refuse with a message."""
         try:
-            if item.character_new is None:
-                raise ValueError("Pick a character.")
             item.af411_link = check_af411_link(item.af411_link)
             references = []
             for kind, field in REFERENCE_FIELDS:
@@ -407,7 +405,7 @@ class FigureModelView(ModelView):
         item.references = references
         # An empty box means "none", as the migration script stores it.
         item.link = (item.link or "").strip() or None
-        item.accessories_text = (item.accessories_text or "").strip() or None
+        item.accessories = (item.accessories or "").strip() or None
         if item.link and self.datamodel.session.scalar(
             select(Figure.id)
             .where(Figure.link == item.link, Figure.id != (item.id or 0))

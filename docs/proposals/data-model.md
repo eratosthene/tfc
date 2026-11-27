@@ -1,6 +1,6 @@
 # Proposal: a new data model, a TFWiki-driven Add Figure flow, and the migration
 
-Refs eratosthene/tfc#53. This is a proposal only: no application code or schema
+Refs eratosthene/tfc#53. **Status: implemented; the contract revision (PR 7) removes the old tables, and the migration scripts went with them.** As first written, this is a proposal only: no application code or schema
 changes in this PR. It rests on the issue text, `app/models.py`, `app/views.py`,
 the two Alembic revisions, `scripts/migrate_mongo_to_sql.py`, `scripts/backup.sh`,
 and the notes from the abandoned #14 importer (branch `claude/tfwiki-importer-cd621d`,

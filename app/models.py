@@ -46,12 +46,9 @@ def _position_table(name, left, right, left_fk, right_fk):
 
 
 class Legacy:
-    """The MongoDB ObjectId a row was migrated from (scripts/migrate_mongo_to_sql.py).
-
-    It makes re-running the migration an upsert, and lets later work match
-    records to the old data. Rows made in the app leave it empty. Drop it in a
-    cleanup once it is no longer needed.
-    """
+    """The MongoDB ObjectId a row was migrated from, kept as a record of where it
+    came from. Rows made in the app leave it empty. Drop it in a cleanup once it
+    is no longer needed."""
 
     legacy_id = Column(String(24), unique=True)
 
@@ -180,20 +177,6 @@ class Tooling(Legacy, Named, db.Model):
         )
 
 
-class Accessory(Legacy, Named, db.Model):
-    __tablename__ = "accessory"
-    __table_args__ = TABLE_ARGS
-    id = Column(Integer, primary_key=True)
-    name = Column(String(60), nullable=False, unique=True)
-
-    def figure_list(self):
-        return Markup(
-            '<a href="'
-            + url_for("FigureModelView.list", _flt_0_accessories=str(self.id))
-            + '">Search Figures</a>'
-        )
-
-
 class Category(Legacy, Named, db.Model):
     __tablename__ = "category"
     __table_args__ = TABLE_ARGS
@@ -208,80 +191,7 @@ class Category(Legacy, Named, db.Model):
         )
 
 
-class TFWikiLink(Legacy, db.Model):
-    __tablename__ = "tf_wiki_link"
-    __table_args__ = TABLE_ARGS
-    id = Column(Integer, primary_key=True)
-    name = Column(String(255), nullable=False)
-    link = Column(String(500), nullable=False)
-
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        ls = self.link.split("#")
-        if len(ls) > 1:
-            n = ls[0].split("/")[-1]
-            if n == "toys" or n == "Generations_toys":
-                n = ls[0].split("/")[-2]
-            sn = n.split("_(")
-            if len(sn) > 1:
-                return (
-                    self.name
-                    + " ("
-                    + sn[-1]
-                    + " @ "
-                    + ls[-1].replace("_", " ")
-                    + " [figure]"
-                )
-            else:
-                return self.name + " @ " + ls[-1].replace("_", " ") + " [figure]"
-        n = self.link.split("/")[-1]
-        sn = n.split("_(")
-        if len(sn) > 1:
-            return self.name + " (" + sn[-1] + " [character]"
-        else:
-            return self.name + " [character]"
-
-    def link_type(self):
-        ls = self.link.split("#")
-        if len(ls) > 1:
-            return "Figure (" + ls[-1].replace("_", " ") + ")"
-        n = self.link.split("/")[-1]
-        sn = n.split("_(")
-        if len(sn) > 1:
-            return "Character (" + sn[-1]
-        else:
-            return "Character"
-
-    def figure_list(self):
-        if "Character" in self.link_type():
-            return Markup(
-                '<a href="'
-                + url_for("FigureModelView.list", _flt_0_character=str(self.id))
-                + '">Search for this Character</a>'
-            )
-        else:
-            return Markup(
-                '<a href="'
-                + url_for("FigureModelView.list", _flt_0_figure_link=str(self.id))
-                + '">Search for this Figure</a>'
-            )
-
-    def history_list(self):
-        if "Figure" in self.link_type():
-            return Markup(
-                '<a href="'
-                + url_for("FigureModelView.list", _flt_0_history=str(self.id))
-                + '">Search for this Ancestor</a>'
-            )
-        else:
-            return Markup("")
-
-
-# The structures of docs/proposals/data-model.md. They sit next to the old ones
-# (tf_wiki_link, accessory, ...) until the cutover and are filled in by
-# scripts/migrate_data_model.py; the views do not read them yet.
+# The structures of docs/proposals/data-model.md.
 def _link(url, text):
     return Markup('<a href="{}">{}</a>').format(url, text)
 
@@ -367,7 +277,7 @@ class Character(Named, db.Model):
 
     def figure_list(self):
         return _list_link(
-            "FigureModelView", "Search Figures", _flt_0_character_new=str(self.id)
+            "FigureModelView", "Search Figures", _flt_0_character=str(self.id)
         )
 
 
@@ -386,10 +296,10 @@ class FranchiseAlias(db.Model):
 
 
 class DataModelMigration(db.Model):
-    """What scripts/migrate_data_model.py has done, one row per step.
+    """What the data-model move did, one row per step (``apply``, ``verify``).
 
-    The revision that finally drops the old tables refuses to run unless the
-    ``verify`` row is there.
+    Kept as a record. The revision that dropped the old tables read it, and it
+    can be dropped in a later cleanup.
     """
 
     __tablename__ = "data_model_migration"
@@ -409,15 +319,6 @@ figure_franchise = _position_table(
 figure_tooling = _position_table(
     "figure_tooling", "figure_id", "tooling_id", "figure.id", "tooling.id"
 )
-figure_history = _position_table(
-    "figure_history", "figure_id", "tf_wiki_link_id", "figure.id", "tf_wiki_link.id"
-)
-figure_packed_with = _position_table(
-    "figure_packed_with", "figure_id", "tf_wiki_link_id", "figure.id", "tf_wiki_link.id"
-)
-figure_accessory = _position_table(
-    "figure_accessory", "figure_id", "accessory_id", "figure.id", "accessory.id"
-)
 figure_category = _position_table(
     "figure_category", "figure_id", "category_id", "figure.id", "category.id"
 )
@@ -429,10 +330,7 @@ figure_gestalt = _position_table(
 ORDERED = (
     ("franchise", figure_franchise),
     ("tooling", figure_tooling),
-    ("history", figure_history),
-    ("packed_with", figure_packed_with),
     ("gestalt_of", figure_gestalt),
-    ("accessories", figure_accessory),
     ("categories", figure_category),
 )
 
@@ -446,17 +344,13 @@ class Figure(Legacy, Named, db.Model):
     image = Column(
         ImageColumn(thumbnail_size=(300, 300, False), size=(2000, 2000, False)),
     )
-    figure_link_id = Column(Integer, ForeignKey("tf_wiki_link.id"))
-    # The old structure, kept until the contract PR. New figures leave it empty.
-    character_id = Column(Integer, ForeignKey("tf_wiki_link.id"))
+    character_id = Column(Integer, ForeignKey("character.id"), nullable=False)
     faction_id = Column(Integer, ForeignKey("faction.id"), nullable=False)
     exclusive_to = Column(String(255))
     hasbro_id = Column(String(255))
     takara_id = Column(String(255))
     condition = Column(String(255))
     quantity = Column(Integer, default=1)
-    # What the user hopes to get, or got, for it. Filled in by hand after looking
-    # at the sold listings that price_check_show links to; nothing updates it.
     # The figure's own page on actionfigure411.com, pasted in once it is found
     # (see price_check_show); it shows the eBay averages.
     af411_link = Column(String(500))
@@ -469,19 +363,16 @@ class Figure(Legacy, Named, db.Model):
     # whole box: a total must count each distinct link once.
     af411_average = Column(Numeric(10, 2))
     af411_average_on = Column(Date)
-    # The new structures, filled by scripts/migrate_data_model.py and not read by
-    # the views yet. They take their final names (link, character_id and
-    # accessories) when the old columns go.
+    # The exact wiki page and fragment this figure is on.
     link = Column(String(500))
-    character_id_new = Column(Integer, ForeignKey("character.id"))
-    accessories_text = Column(Text)
+    accessories = Column(Text)
 
-    character_new = relationship("Character")
+    character = relationship("Character")
     # Read-only paths for the Figure list's filters and searches.
     continuity = relationship(
         "Continuity",
         secondary=Character.__table__,
-        primaryjoin="Figure.character_id_new == Character.id",
+        primaryjoin="Figure.character_id == Character.id",
         secondaryjoin="Character.continuity_id == Continuity.id",
         viewonly=True,
     )
@@ -490,7 +381,7 @@ class Figure(Legacy, Named, db.Model):
         secondary=lambda: Character.__table__.join(
             Continuity.__table__, Character.continuity_id == Continuity.id
         ),
-        primaryjoin="Figure.character_id_new == Character.id",
+        primaryjoin="Figure.character_id == Character.id",
         secondaryjoin="Continuity.family_id == ContinuityFamily.id",
         viewonly=True,
     )
@@ -507,8 +398,6 @@ class Figure(Legacy, Named, db.Model):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    figure_link = relationship("TFWikiLink", foreign_keys=[figure_link_id])
-    character = relationship("TFWikiLink", foreign_keys=[character_id])
     faction = relationship("Faction")
     franchise = relationship(
         "Franchise", secondary=figure_franchise, order_by=figure_franchise.c.position
@@ -516,23 +405,12 @@ class Figure(Legacy, Named, db.Model):
     tooling = relationship(
         "Tooling", secondary=figure_tooling, order_by=figure_tooling.c.position
     )
-    history = relationship(
-        "TFWikiLink", secondary=figure_history, order_by=figure_history.c.position
-    )
-    packed_with = relationship(
-        "TFWikiLink",
-        secondary=figure_packed_with,
-        order_by=figure_packed_with.c.position,
-    )
     gestalt_of = relationship(
         "Figure",
         secondary=figure_gestalt,
         primaryjoin=id == figure_gestalt.c.figure_id,
         secondaryjoin=id == figure_gestalt.c.gestalt_id,
         order_by=figure_gestalt.c.position,
-    )
-    accessories = relationship(
-        "Accessory", secondary=figure_accessory, order_by=figure_accessory.c.position
     )
     categories = relationship(
         "Category", secondary=figure_category, order_by=figure_category.c.position
@@ -589,7 +467,7 @@ class Figure(Legacy, Named, db.Model):
         return m
 
     def character_show(self):
-        char = self.character_new
+        char = self.character
         if char is None:
             return Markup("")
         text = char.name
@@ -598,7 +476,7 @@ class Figure(Legacy, Named, db.Model):
         return _link(char.link, text)
 
     def continuity_show(self):
-        continuity = self.character_new.continuity if self.character_new else None
+        continuity = self.character.continuity if self.character else None
         if continuity is None:
             return Markup("")
         return _link(
@@ -606,7 +484,7 @@ class Figure(Legacy, Named, db.Model):
         )
 
     def family_show(self):
-        continuity = self.character_new.continuity if self.character_new else None
+        continuity = self.character.continuity if self.character else None
         if continuity is None or continuity.family is None:
             return Markup("")
         return _link(
@@ -680,7 +558,7 @@ Character.figure_count = column_property(
             func.coalesce(func.sum(func.coalesce(Figure.quantity, 1)), 0), Integer
         )
     )
-    .where(Figure.character_id_new == Character.id)
+    .where(Figure.character_id == Character.id)
     .correlate_except(Figure)
     .scalar_subquery(),
     deferred=False,

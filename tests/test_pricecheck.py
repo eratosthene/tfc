@@ -12,7 +12,7 @@ def _figure(seed, **kw):
     other = Figure(
         name=kw.pop("name", "Second"),
         release_year=2000,
-        character_new=kw.pop("character", fig.character_new),
+        character=kw.pop("character", fig.character),
         faction=fig.faction,
         **kw,
     )
@@ -107,7 +107,7 @@ def test_the_actionfigure411_link_is_saved_from_the_form_and_checked(auth_client
     fig = db.session.get(Figure, seed["figure"].id)
     data = {
         "name": fig.name,
-        "character_new": str(fig.character_id_new),
+        "character": str(fig.character_id),
         "faction": str(fig.faction_id),
         "franchise": [str(f.id) for f in fig.franchise],
         "release_year": str(fig.release_year),
