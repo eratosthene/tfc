@@ -174,7 +174,7 @@ stays in the uploads folder until you delete it.
 
 A figure's page has a **Price check** row: eBay's sold listings, Transformerland's
 store and ActionFigure411, each a search with the figure's name filled in. Nothing
-is fetched; the links open in your browser. **Sell price** is typed in by hand.
+is fetched; the links open in your browser.
 
 ActionFigure411's figure pages show eBay sold and Buy It Now averages. Its bot
 protection turns the app away (it answers 403 to an honest User-Agent), so the app

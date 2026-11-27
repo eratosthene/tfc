@@ -303,7 +303,6 @@ class FigureModelView(ModelView):
         "franchise",
         "categories",
         "release_year",
-        "sell_price",
         "image_thumb_show",
     ]
     show_columns = [
@@ -327,7 +326,6 @@ class FigureModelView(ModelView):
         "categories",
         "condition",
         "quantity",
-        "sell_price",
         "af411_average_show",
         "price_check_show",
     ]
@@ -351,7 +349,6 @@ class FigureModelView(ModelView):
         "gestalt_of",
         "condition",
         "quantity",
-        "sell_price",
         "af411_link",
         "legacy_id",
     ]

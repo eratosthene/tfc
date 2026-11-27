@@ -1,4 +1,4 @@
-"""Price-check links, the sell price, and finding characters with several figures."""
+"""Price-check links, and finding characters with several figures."""
 
 from urllib.parse import parse_qs, urlparse
 
@@ -52,34 +52,12 @@ def test_figure_without_a_franchise_still_gets_links(seed):
     assert len(price_check_links(other)) == 3
 
 
-def test_figure_page_shows_the_links_and_the_sell_price(auth_client, seed):
-    fig = db.session.get(Figure, seed["figure"].id)
-    fig.sell_price = 45.5
-    db.session.commit()
+def test_figure_page_shows_the_links(auth_client, seed):
     html = auth_client.get("/figuremodelview/show/%s" % seed["figure"].id).get_data(
         as_text=True
     )
     assert "LH_Sold=1" in html and "transformerland.com/store/search.php" in html
     assert "actionfigure411.com/common/search-results.php" in html
-    assert "45.50" in html
-
-
-def test_sell_price_can_be_saved_from_the_edit_form(auth_client, seed):
-    fig = db.session.get(Figure, seed["figure"].id)
-    data = {
-        "name": fig.name,
-        "character_new": str(fig.character_id_new),
-        "faction": str(fig.faction_id),
-        "franchise": [str(f.id) for f in fig.franchise],
-        "release_year": str(fig.release_year),
-        "sell_price": "37.25",
-    }
-    resp = auth_client.post(
-        "/figuremodelview/edit/%s" % seed["figure"].id, data=data, follow_redirects=True
-    )
-    assert resp.status_code == 200
-    db.session.expire_all()
-    assert str(db.session.get(Figure, seed["figure"].id).sell_price) == "37.25"
 
 
 def test_character_figure_count_adds_quantities(seed):
