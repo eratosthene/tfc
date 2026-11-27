@@ -4,9 +4,10 @@
 <div class="container">
   <h1>My Transformers Collection</h1>
   <h2>Total number of figures: {{ num_figures }}</h2>
-{% macro worth_text(w, total) %}{% if w.priced %}${{ "{:,.2f}".format(w.value) }}
-  <small class="text-muted">({{ w.priced }} of {{ total }} priced)</small>{% else %}<span class="text-muted">&ndash;</span>{% endif %}{% endmacro %}
-  <h3 id="total-value">Total value: {{ worth_text(worth, num_figures) }}</h3>
+{% macro worth_text(w) %}{% if w.priced %}${{ "{:,.2f}".format(w.value) }}
+  <small class="text-muted">({{ w.priced }} of {{ w.of }} priced)</small>{% else %}<span class="text-muted">&ndash;</span>{% endif %}{% endmacro %}
+  <h3 id="total-value">Total value: {{ worth_text(worth) }}</h3>
+  <p class="help-block">Combiners, Duocons and Duobots (figures made of other figures) are not counted in the total or the franchise rows.</p>
 {% macro toggle(has_children) %}{% if has_children %}<button type="button" class="btn btn-xs btn-default tree-toggle" aria-expanded="false" title="Show / hide the ones below">&#9656;</button>{% else %}<span class="tree-toggle-gap"></span>{% endif %}{% endmacro %}
 {% macro franchise_rows(nodes, depth, parent) %}
 {% for f in nodes %}
@@ -20,7 +21,7 @@
         <td>{{ f.franchise.start_year}}</td>
         <td>{{ f.franchise.end_year }}</td>
         <td>{{ f.total }}</td>
-        <td>{{ worth_text(f.worth, f.total) }}</td>
+        <td>{{ worth_text(f.worth) }}</td>
       </tr>
 {{ franchise_rows(f.children, depth + 1, 'f' ~ f.franchise.id) }}
 {% endfor %}

@@ -17,6 +17,7 @@ from app.models import (
     Tooling,
     figure_category,
     figure_franchise,
+    figure_gestalt,
     figure_tooling,
 )
 
@@ -37,8 +38,17 @@ def _prices():
     }
 
 
+def _gestalts():
+    """The ids of figures made of others (Combiners, Duocons, Duobots).
+
+    They are not individual, distinct figures in the collection, so the totals
+    on the home page leave them out.
+    """
+    return set(db.session.scalars(select(figure_gestalt.c.figure_id).distinct()))
+
+
 def _worth(figure_ids, prices):
-    """The value of some figures, and how many of them have an average.
+    """The value of some figures, how many have an average, and how many there are.
 
     The average is for the whole retail box, so the figures sharing a box (the
     same link) are worth it once between them, times the most copies of any of
@@ -54,7 +64,7 @@ def _worth(figure_ids, prices):
         box = boxes.setdefault(link or ("figure", figure_id), [average, 0])
         box[1] = max(box[1], copies)
     value = sum((average * copies for average, copies in boxes.values()), Decimal(0))
-    return {"value": value, "priced": priced}
+    return {"value": value, "priced": priced, "of": len(figure_ids)}
 
 
 def _by_assoc(model, table, key, order_by):
@@ -73,12 +83,12 @@ def _by_assoc(model, table, key, order_by):
 def _by_franchise():
     """The franchise tree: top-level franchises, each with its ``children``.
 
-    A franchise's total counts the figures tagged with it or anything below it.
-    A franchise with none (so nothing below it has any either) is left out.
+    A franchise's total counts the figures tagged with it or anything below it,
+    leaving out gestalts. A franchise with none (so nothing below it has any either) is left out.
     Each also has the ``worth`` of those figures. A figure tagged with several
     franchises is in each of their totals, so these overlap.
     """
-    prices = _prices()
+    prices, gestalts = _prices(), _gestalts()
     parents = parent_map()
     tagged = defaultdict(set)
     for figure_id, franchise_id in db.session.execute(
@@ -91,6 +101,7 @@ def _by_franchise():
         figures = set()
         for franchise_id in descendant_ids(franchise.id, parents):
             figures |= tagged[franchise_id]
+        figures -= gestalts
         nodes[franchise.id] = {
             "franchise": franchise,
             "total": len(figures),
@@ -149,9 +160,11 @@ class MyIndexView(IndexView):
     @expose("/")
     def index(self):
         self.update_redirect()
-        num_figures = db.session.query(func.count(Figure.id)).scalar()
-        # Worked out over all the figures, not added up from the franchises.
-        worth = _worth(set(db.session.scalars(select(Figure.id))), _prices())
+        # Not counting gestalts, and worked out over all the figures, not added
+        # up from the franchises.
+        figures = set(db.session.scalars(select(Figure.id))) - _gestalts()
+        num_figures = len(figures)
+        worth = _worth(figures, _prices())
         by_franchise = _by_franchise()
         by_continuity = _by_continuity()
         by_faction = [
