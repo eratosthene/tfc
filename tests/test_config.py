@@ -26,3 +26,9 @@ UPLOAD_FOLDER = tempfile.mkdtemp(prefix="tfc-test-uploads-") + os.sep
 IMG_UPLOAD_FOLDER = UPLOAD_FOLDER
 IMG_UPLOAD_URL = "/static/uploads/"
 IMG_SIZE = (2000, 2000, False)
+
+# Hashing a password with Flask-AppBuilder's default (scrypt) takes ~40 ms, and
+# every login in the tests checked one, which was half the run. One pbkdf2 round
+# is plenty for a throwaway test user; the hash records its own method, so
+# logging in still works the normal way.
+FAB_PASSWORD_HASH_METHOD = "pbkdf2:sha256:1"
