@@ -296,6 +296,11 @@ class FigureModelView(ModelView):
         "price_check_show": "Price check",
         "af411_link": "ActionFigure411 link",
         "af411_average_show": "ActionFigure411 average (whole box)",
+        "af411_average": "WB Avg",
+    }
+    # The ActionFigure411 whole-box average, kept sortable by showing the real column.
+    formatters_columns = {
+        "af411_average": lambda value: "" if value is None else "${:,.2f}".format(value)
     }
     list_columns = [
         "name",
@@ -303,6 +308,7 @@ class FigureModelView(ModelView):
         "franchise",
         "categories",
         "release_year",
+        "af411_average",
         "image_thumb_show",
     ]
     show_columns = [

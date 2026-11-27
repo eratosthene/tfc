@@ -3,6 +3,7 @@ anonymous one, and one whose role only allows reading."""
 
 import io
 import os
+from decimal import Decimal
 
 import pytest
 from PIL import Image
@@ -190,6 +191,23 @@ def test_figure_list_shows_relations(auth_client, seed):
     html = auth_client.get("/figuremodelview/list/").get_data(as_text=True)
     for text in ("Optimus Prime", "Autobot", "Generation 1", "Leader", "1984"):
         assert text in html
+
+
+def test_figure_list_has_a_sortable_whole_box_average_column(auth_client, seed):
+    fig = db.session.get(Figure, seed["figure"].id)
+    fig.af411_average = Decimal("1234.5")
+    db.session.commit()
+    html = auth_client.get("/figuremodelview/list/").get_data(as_text=True)
+    assert "WB Avg" in html and "$1,234.50" in html
+    # A figure with no average shows nothing rather than "None".
+    fig.af411_average = None
+    db.session.commit()
+    html = auth_client.get("/figuremodelview/list/").get_data(as_text=True)
+    assert (
+        "WB Avg" in html and "$" not in html.split("WB Avg", 1)[1].split("</table>")[0]
+    )
+    resp = auth_client.get("/figuremodelview/list/?_oc_FigureModelView=af411_average")
+    assert resp.status_code == 200
 
 
 def test_figure_show_renders_helpers(auth_client, seed):
