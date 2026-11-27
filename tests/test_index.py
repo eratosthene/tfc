@@ -270,31 +270,42 @@ def test_a_box_average_is_counted_once_for_the_figures_in_it(auth_client, captur
 
 def test_a_figure_with_an_average_but_no_link_is_a_box_of_its_own():
     prices = {1: (None, Decimal("10"), 1), 2: (None, Decimal("10"), 1)}
-    assert _worth({1, 2}, prices, set()) == {
+    assert _worth({1, 2}, prices) == {
         "value": Decimal("20"),
         "priced": 2,
         "of": 2,
     }
 
 
-def test_gestalts_without_an_average_are_left_out_of_the_priced_count(
-    auth_client, captured
-):
+def test_gestalts_are_not_counted_in_the_totals(auth_client, captured):
     _add_known_data()
     one, two, three = (
         db.session.query(Figure).filter_by(name=n).one()
         for n in ("One", "Two", "Three")
     )
-    # Two is a combiner made of One and Three; AF4 has no box for it.
+    # Two is a combiner made of One and Three, so it is not a figure of its own.
     two.gestalt_of = [one, three]
     one.af411_average = Decimal("10.00")
+    two.af411_average = Decimal("30.00")
     db.session.commit()
     resp = auth_client.get("/")
     html = " ".join(resp.get_data(as_text=True).split())
+    assert captured["num_figures"] == 2 and "Total number of figures: 2" in html
     assert captured["worth"] == {"value": Decimal("10.00"), "priced": 1, "of": 2}
-    assert "(1 of 2 priced)" in html
-    # The same gestalt sold in the same box as its parts has an average, and counts.
-    two.af411_average = Decimal("30.00")
+    by_name = {str(r["franchise"]): r for r in captured["by_franchise"]}
+    assert by_name["G1"]["total"] == 1  # One; Two is a gestalt
+    assert by_name["Beast Wars"]["total"] == 1  # Three
+    assert by_name["Beast Wars"]["worth"]["of"] == 1
+
+
+def test_a_franchise_with_only_gestalts_is_not_listed(auth_client, captured):
+    _add_known_data()
+    one, two, three = (
+        db.session.query(Figure).filter_by(name=n).one()
+        for n in ("One", "Two", "Three")
+    )
+    two.gestalt_of = [one]
+    three.gestalt_of = [one]  # Beast Wars has only Two and Three
     db.session.commit()
     auth_client.get("/")
-    assert captured["worth"] == {"value": Decimal("40.00"), "priced": 2, "of": 3}
+    assert [str(r["franchise"]) for r in captured["by_franchise"]] == ["G1"]

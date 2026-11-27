@@ -7,6 +7,7 @@
 {% macro worth_text(w) %}{% if w.priced %}${{ "{:,.2f}".format(w.value) }}
   <small class="text-muted">({{ w.priced }} of {{ w.of }} priced)</small>{% else %}<span class="text-muted">&ndash;</span>{% endif %}{% endmacro %}
   <h3 id="total-value">Total value: {{ worth_text(worth) }}</h3>
+  <p class="help-block">Combiners, Duocons and Duobots (figures made of other figures) are not counted in the total or the franchise rows.</p>
 {% macro toggle(has_children) %}{% if has_children %}<button type="button" class="btn btn-xs btn-default tree-toggle" aria-expanded="false" title="Show / hide the ones below">&#9656;</button>{% else %}<span class="tree-toggle-gap"></span>{% endif %}{% endmacro %}
 {% macro franchise_rows(nodes, depth, parent) %}
 {% for f in nodes %}
@@ -41,8 +42,7 @@
     </tbody>
   </table>
   <p class="help-block">A figure is worth its ActionFigure411 average (times the quantity). The average is for the whole box, so
-    figures in the same box count it once. Figures with no average are not counted, and neither are Combiners, Duocons and Duobots (figures with
-    components) that have none, since ActionFigure411 only prices whole boxes.
+    figures in the same box count it once. Figures with no average are not counted.
     A figure tagged with several franchises, or one below another, is in each of their rows, so the rows add up to
     more than the total above.</p>
 {% endcall %}

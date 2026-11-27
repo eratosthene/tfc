@@ -41,34 +41,30 @@ def _prices():
 def _gestalts():
     """The ids of figures made of others (Combiners, Duocons, Duobots).
 
-    They are not sold in a box of their own, so ActionFigure411, which lists
-    whole boxes, has no price for them unless they came in the same box as their
-    parts (then they have an average like any other figure).
+    They are not individual, distinct figures in the collection, so the totals
+    on the home page leave them out.
     """
     return set(db.session.scalars(select(figure_gestalt.c.figure_id).distinct()))
 
 
-def _worth(figure_ids, prices, gestalts):
-    """The value of some figures, how many have an average, and how many could.
+def _worth(figure_ids, prices):
+    """The value of some figures, how many have an average, and how many there are.
 
     The average is for the whole retail box, so the figures sharing a box (the
     same link) are worth it once between them, times the most copies of any of
-    them. A gestalt with no average is left out of the count of figures that
-    could have one (``of``).
+    them.
     """
-    priced, boxes, of = 0, {}, 0
+    priced, boxes = 0, {}
     for figure_id in figure_ids:
         if figure_id not in prices:
-            of += figure_id not in gestalts
             continue
         priced += 1
-        of += 1
         link, average, copies = prices[figure_id]
         # No link on a figure is a box of its own.
         box = boxes.setdefault(link or ("figure", figure_id), [average, 0])
         box[1] = max(box[1], copies)
     value = sum((average * copies for average, copies in boxes.values()), Decimal(0))
-    return {"value": value, "priced": priced, "of": of}
+    return {"value": value, "priced": priced, "of": len(figure_ids)}
 
 
 def _by_assoc(model, table, key, order_by):
@@ -87,8 +83,8 @@ def _by_assoc(model, table, key, order_by):
 def _by_franchise():
     """The franchise tree: top-level franchises, each with its ``children``.
 
-    A franchise's total counts the figures tagged with it or anything below it.
-    A franchise with none (so nothing below it has any either) is left out.
+    A franchise's total counts the figures tagged with it or anything below it,
+    leaving out gestalts. A franchise with none (so nothing below it has any either) is left out.
     Each also has the ``worth`` of those figures. A figure tagged with several
     franchises is in each of their totals, so these overlap.
     """
@@ -105,10 +101,11 @@ def _by_franchise():
         figures = set()
         for franchise_id in descendant_ids(franchise.id, parents):
             figures |= tagged[franchise_id]
+        figures -= gestalts
         nodes[franchise.id] = {
             "franchise": franchise,
             "total": len(figures),
-            "worth": _worth(figures, prices, gestalts),
+            "worth": _worth(figures, prices),
             "children": [],
         }
     roots = []
@@ -163,11 +160,11 @@ class MyIndexView(IndexView):
     @expose("/")
     def index(self):
         self.update_redirect()
-        num_figures = db.session.query(func.count(Figure.id)).scalar()
-        # Worked out over all the figures, not added up from the franchises.
-        worth = _worth(
-            set(db.session.scalars(select(Figure.id))), _prices(), _gestalts()
-        )
+        # Not counting gestalts, and worked out over all the figures, not added
+        # up from the franchises.
+        figures = set(db.session.scalars(select(Figure.id))) - _gestalts()
+        num_figures = len(figures)
+        worth = _worth(figures, _prices())
         by_franchise = _by_franchise()
         by_continuity = _by_continuity()
         by_faction = [
